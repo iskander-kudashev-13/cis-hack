@@ -25,24 +25,33 @@ type KindInfo struct {
 	Normalize string   `json:"-"` // how the identifier is normalised before HMAC
 	PayField  string   `json:"-"` // where Mashreq's payment carries it
 	Weight    int      `json:"-"`
+	Severity  int      `json:"-"`       // risk points a match adds on top of the alert itself
+	Explain   string   `json:"explain"` // how this fraud works, for the analyst
+	Checks    []string `json:"checks"`  // what the analyst should verify before deciding
 }
 
 var signalKinds = []KindInfo{
 	{Kind: "bec_beneficiary", Label: "Business email compromise", Fraud: "Invoice redirected to a mule account", Indicator: "account_hmac", Covered: true,
-		Reasons: []string{"confirmed_bec_case", "invoice_redirection"}, Weight: 4},
+		Reasons: []string{"confirmed_bec_case", "invoice_redirection"}, Weight: 4, Severity: 10, Explain: "A fraudster takes over a supplier's or the customer's email and sends an invoice with new bank details. The customer pays a real invoice to a mule account.",
+		Checks: []string{"Call the customer on a number from the KYC file, not from the email", "Ask whether the payee's bank details changed recently and how they were told", "Compare with the last payment to this supplier"}},
 	{Kind: "app_scam_beneficiary", Label: "Authorised push payment scam", Fraud: "Investment, purchase or romance scam payee", Indicator: "account_hmac", Covered: true,
-		Reasons: []string{"investment_scam", "purchase_scam", "romance_scam"}, Weight: 4},
+		Reasons: []string{"investment_scam", "purchase_scam", "romance_scam"}, Weight: 4, Severity: 8, Explain: "The customer is persuaded to send money themselves: fake investment platforms, goods that never arrive, or an online relationship. The payment is authorised, so the bank's usual controls pass.",
+		Checks: []string{"Ask the customer what the payment is for and how they found the payee", "Look for pressure, urgency or promised returns", "Offer a cooling-off delay before release"}},
 	{Kind: "mule_account", Label: "Money mule account", Fraud: "Account receiving and forwarding scam proceeds", Indicator: "account_hmac", Covered: true,
-		Reasons: []string{"mule_network_link", "rapid_pass_through"}, Weight: 3},
+		Reasons: []string{"mule_network_link", "rapid_pass_through"}, Weight: 3, Severity: 6, Explain: "The payee account receives scam proceeds and forwards them quickly. The holder may be recruited or may have sold the account.",
+		Checks: []string{"Check whether the customer knows the payee personally", "Look for round amounts and first-time payees", "Consider declining and filing a suspicious transaction report"}},
 	{Kind: "aani_proxy_scam", Label: "Scam payee on Aani mobile number", Fraud: "Instant payment to a mobile-number alias used in impersonation scams", Indicator: "phone_hmac",
 		Reasons: []string{"impersonation_scam", "fake_bank_call"}, Normalize: "E.164 UAE mobile number, e.g. +971501234567 (strip spaces, leading 00 → +, local 05 → +9715)",
-		PayField: "creditor.proxy.mobile (Aani alias payments)", Weight: 2},
+		PayField: "creditor.proxy.mobile (Aani alias payments)", Weight: 2, Severity: 8, Explain: "Victims get a call or message from someone posing as the bank or police and are told to send money to a 'safe' mobile number via Aani. Instant payments cannot be recalled.",
+		Checks: []string{"Call the customer and ask whether someone told them to move money", "Remind them the bank never asks for transfers to a safe account", "Release only after the customer confirms who the payee is"}},
 	{Kind: "crypto_offramp_wallet", Label: "Crypto off-ramp wallet", Fraud: "Scam proceeds cashed out to a crypto wallet via a VASP", Indicator: "wallet_hmac",
 		Reasons: []string{"investment_scam_cashout", "mule_network_link"}, Normalize: "lower-case wallet address with whitespace removed",
-		PayField: "creditor.vasp.wallet (transfers to licensed VASPs)", Weight: 1},
+		PayField: "creditor.vasp.wallet (transfers to licensed VASPs)", Weight: 1, Severity: 7, Explain: "Scam proceeds are converted to crypto through a licensed exchange and sent to a wallet controlled by the fraud ring.",
+		Checks: []string{"Ask the customer about the investment platform", "Check the exchange and the wallet history if available", "Look for a pattern of growing transfers"}},
 	{Kind: "ato_device", Label: "Account takeover device", Fraud: "Device fingerprint seen in confirmed account takeovers", Indicator: "device_hmac",
 		Reasons: []string{"account_takeover", "sim_swap"}, Normalize: "device fingerprint hash from the mobile banking SDK, lower-case hex",
-		PayField: "channel.device_id (mobile banking session of the payer)", Weight: 1},
+		PayField: "channel.device_id (mobile banking session of the payer)", Weight: 1, Severity: 9, Explain: "A criminal logs in to the customer's mobile banking from a device seen in confirmed account takeovers, often after a SIM swap.",
+		Checks: []string{"Confirm the session with the customer over a known channel", "Check for a recent SIM change or new device enrolment", "Block the device if the customer does not recognise it"}},
 }
 
 func kindInfo(kind string) KindInfo {
@@ -88,6 +97,16 @@ type Txn struct {
 	GapKind   string     `json:"gap_kind,omitempty"`
 	DecidedBy string     `json:"decided_by,omitempty"`
 	DecidedAt *time.Time `json:"decided_at,omitempty"`
+	NewPayee  bool       `json:"new_payee"`
+	Score     int        `json:"score"`
+	Priority  string     `json:"priority"` // critical | high | medium | low
+	Factors   []Factor   `json:"factors"`
+}
+
+// Factor is one explainable part of a payment's risk score.
+type Factor struct {
+	Label  string `json:"label"`
+	Points int    `json:"points"`
 }
 
 // DevinTask is the Devin session started for one uncovered signal kind.
@@ -158,6 +177,7 @@ func (d *Demo) newTxn(rnd *mathrand.Rand) {
 	default:
 		tx.Channel, tx.PayeeType, tx.PayeeID = "UAEFTS", "iban", randIBAN(rnd)
 	}
+	tx.NewPayee = rnd.Intn(100) < 35 || tx.PayeeType == "iban" && contains(flagged, tx.PayeeID) && rnd.Intn(3) > 0
 	d.check(&tx)
 	d.addTxn(tx)
 }
@@ -166,34 +186,75 @@ func (d *Demo) newTxn(rnd *mathrand.Rand) {
 // depend on a signal kind the node cannot read yet are held as unverified.
 func (d *Demo) check(tx *Txn) {
 	now := time.Now().UTC()
+	var f []Factor
+	add := func(label string, pts int) { f = append(f, Factor{label, pts}) }
+	tx.Status, tx.Reason = "approved", "No active warning for this account"
 	if tx.PayeeType == "iban" {
 		if e, hit := d.B.Check(tx.PayeeID); hit {
 			k := kindInfo(e.Envelope.Kind)
 			tx.Status, tx.SignalID, tx.Issuer, tx.Kind = "held", e.Envelope.SignalID, issuerName(e.Envelope.Issuer), e.Envelope.Kind
 			tx.Reason = fmt.Sprintf("%s reported this account: %s (%s, %d related cases)", tx.Issuer, k.Label, strings.ReplaceAll(e.Payload.ReasonCode, "_", " "), e.Payload.CaseCount)
-			return
+			if e.Payload.EvidenceLevel == "issuer_analyst_verified" {
+				add(fmt.Sprintf("Payee reported by %s, confirmed by their analyst", tx.Issuer), 45)
+			} else {
+				add(fmt.Sprintf("Payee reported by %s, not yet confirmed", tx.Issuer), 25)
+			}
+			add(k.Label+" pattern", k.Severity)
+			c := e.Payload.CaseCount
+			if c > 4 {
+				c = 4
+			}
+			add(fmt.Sprintf("%d related cases at %s", e.Payload.CaseCount, tx.Issuer), 3*c)
 		}
-		tx.Reason = "No active warning for this account"
-		return
-	}
-	// Aani payments go to a mobile alias. Mashreq's node only matches IBANs,
-	// so alerts about mobile numbers cannot be checked.
-	var issuers []string
-	n := 0
-	for _, e := range d.B.CacheList() {
-		if e.State(now) == node.StateActive && e.Payload.Indicator.Type == "phone_hmac" {
-			n++
-			if name := issuerName(e.Envelope.Issuer); !contains(issuers, name) {
-				issuers = append(issuers, name)
+	} else {
+		// Aani payments go to a mobile alias. Mashreq's node only matches IBANs,
+		// so alerts about mobile numbers cannot be checked.
+		tx.Reason = "No checkable warnings for this mobile number"
+		var issuers []string
+		n := 0
+		for _, e := range d.B.CacheList() {
+			if e.State(now) == node.StateActive && e.Payload.Indicator.Type == "phone_hmac" {
+				n++
+				if name := issuerName(e.Envelope.Issuer); !contains(issuers, name) {
+					issuers = append(issuers, name)
+				}
 			}
 		}
+		if n > 0 && tx.Amount >= 5000 {
+			tx.Status, tx.GapKind = "unverified", "aani_proxy_scam"
+			tx.Reason = fmt.Sprintf("Cannot check: %d active alerts about Aani mobile numbers from %s, and Mashreq does not support this signal type yet", n, strings.Join(issuers, ", "))
+			add(fmt.Sprintf("Uncovered alerts about mobile payees: %d, from %s", n, strings.Join(issuers, ", ")), 18+6*min(len(issuers), 3))
+			add("Scam payee on Aani mobile number pattern", kindInfo("aani_proxy_scam").Severity)
+		}
+		add("Instant Aani payment, cannot be recalled", 6)
 	}
-	if n > 0 && tx.Amount >= 5000 {
-		tx.Status, tx.GapKind = "unverified", "aani_proxy_scam"
-		tx.Reason = fmt.Sprintf("Cannot check: %d active alerts about Aani mobile numbers from %s, and Mashreq does not support this signal type yet", n, strings.Join(issuers, ", "))
-		return
+	switch {
+	case tx.Amount >= 100000:
+		add(fmt.Sprintf("Large amount, AED %s", fmtAmount(tx.Amount*100)), 15)
+	case tx.Amount >= 25000:
+		add(fmt.Sprintf("Above AED 25,000"), 8)
 	}
-	tx.Reason = "No checkable warnings for this mobile number"
+	if tx.NewPayee {
+		add("First payment from this customer to this payee", 12)
+	} else {
+		add("Customer has paid this payee before", -10)
+	}
+	score := 0
+	for _, x := range f {
+		score += x.Points
+	}
+	tx.Score = max(0, min(100, score))
+	tx.Factors = f
+	switch {
+	case tx.Score >= 75:
+		tx.Priority = "critical"
+	case tx.Score >= 55:
+		tx.Priority = "high"
+	case tx.Score >= 35:
+		tx.Priority = "medium"
+	default:
+		tx.Priority = "low"
+	}
 }
 
 func contains(s []string, v string) bool {
@@ -292,6 +353,7 @@ func (d *Demo) opsState(now time.Time) map[string]any {
 			pending = append(pending, t)
 		}
 	}
+	sort.SliceStable(pending, func(i, j int) bool { return pending[i].Score > pending[j].Score })
 	affected := map[string]int{}
 	for _, t := range d.txns {
 		if t.GapKind != "" {
@@ -323,7 +385,7 @@ func (d *Demo) opsState(now time.Time) map[string]any {
 	kinds := []map[string]any{}
 	for _, k := range signalKinds {
 		kinds = append(kinds, map[string]any{"kind": k.Kind, "label": k.Label, "fraud": k.Fraud, "indicator": k.Indicator, "covered": k.Covered,
-			"active_uncovered": byKind[k.Kind], "affected_txns": affected[k.Kind], "devin": tasks[k.Kind]})
+			"explain": k.Explain, "checks": k.Checks, "active_uncovered": byKind[k.Kind], "affected_txns": affected[k.Kind], "devin": tasks[k.Kind]})
 	}
 	return map[string]any{"txns": recent, "pending": pending, "counts": counts, "total": total, "gaps": gaps, "kinds": kinds}
 }

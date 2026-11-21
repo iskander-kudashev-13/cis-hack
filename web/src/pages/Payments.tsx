@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Bot, Check, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Loader2, Search, ShieldAlert, ShieldCheck, ShieldQuestion, X } from "lucide-react";
 import { api } from "../api/client";
-import type { KindRow, State, Txn, TxnStatus } from "../api/types";
+import type { KindRow, Priority, State, Txn, TxnStatus } from "../api/types";
 import { clock } from "../components/ui";
 
 type Run = (fn: () => Promise<State>) => Promise<void>;
@@ -12,6 +12,12 @@ const STATUS: Record<TxnStatus, { label: string; bg: string; fg: string }> = {
   unverified: { label: "Held · not covered", bg: "rgba(245,200,75,0.16)", fg: "#f5c84b" },
   released: { label: "Released by analyst", bg: "rgba(59,120,240,0.18)", fg: "#7aa5ff" },
   declined: { label: "Declined by analyst", bg: "#2a2a2e", fg: "#c9c9cf" },
+};
+const PRIORITY: Record<Priority, { label: string; color: string }> = {
+  critical: { label: "Critical", color: "#ff5a4e" },
+  high: { label: "High", color: "#ff9a3c" },
+  medium: { label: "Medium", color: "#f5c84b" },
+  low: { label: "Low", color: "#5fbf7b" },
 };
 const aed = (n: number) => `AED ${n.toLocaleString("en-US")}`;
 const payeeMasked = (t: Txn) =>
@@ -82,16 +88,18 @@ export function PaymentsPage({ state, busy, run }: { state: State; busy: boolean
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
+                          <PriorityBadge t={t} />
                           <span className="text-[16px] font-medium tabular-nums">{aed(t.amount)}</span>
                           <StatusPill s={t.status} />
                           <span className="font-mono text-[11.5px] text-text-3">{t.id} · {clock(t.at)}</span>
                         </div>
                         <div className="mt-0.5 truncate text-[12.5px] text-text-2">{t.customer} → {t.payee} · {payeeMasked(t)} · {t.channel}</div>
                         <div className="mt-1 text-[12.5px]" style={{ color: STATUS[t.status].fg }}>{t.reason}</div>
+                        <RiskPanel t={t} k={kinds[t.kind ?? t.gap_kind ?? ""]} />
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <button disabled={busy} onClick={() => decide(t.id, "release")}
                             className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-[12.5px] font-medium text-black hover:bg-white/90 disabled:opacity-50">
-                            <Check size={13} /> Release payment
+                            <Check size={13} /> Approve
                           </button>
                           <button disabled={busy} onClick={() => decide(t.id, "decline")}
                             className="inline-flex items-center gap-1.5 rounded-full bg-[#e8573a] px-3.5 py-1.5 text-[12.5px] font-medium text-white hover:brightness-110 disabled:opacity-50">
@@ -109,8 +117,8 @@ export function PaymentsPage({ state, busy, run }: { state: State; busy: boolean
           )}
 
           <Card title={found ? `Search results · ${found.length}` : "All payments"} right={<span className="text-[12px] text-text-3">{found ? `for “${q}”` : "newest first · click a row"}</span>}>
-            <div className="grid grid-cols-[18px_92px_minmax(0,1.2fr)_minmax(0,1fr)_64px_104px_150px] gap-3 px-6 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-text-3">
-              <span /><span>ID</span><span>Customer → payee</span><span>Payee account</span><span>Rail</span><span className="text-right">Amount</span><span>Status</span>
+            <div className="grid grid-cols-[18px_92px_minmax(0,1.2fr)_minmax(0,1fr)_56px_100px_76px_150px] gap-3 px-6 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-text-3">
+              <span /><span>ID</span><span>Customer → payee</span><span>Payee account</span><span>Rail</span><span className="text-right">Amount</span><span>Risk</span><span>Status</span>
             </div>
             <div className="max-h-[560px] overflow-auto">
               {rows.length === 0 && <div className="px-6 py-5 text-[13px] text-text-3">No payments match.</div>}
@@ -177,13 +185,14 @@ function TxnRow({ t, busy, decide, kinds }: { t: Txn; busy: boolean; decide: (id
   return (
     <div className="border-t border-white/5">
       <button onClick={() => setOpen(!open)}
-        className="grid w-full grid-cols-[18px_92px_minmax(0,1.2fr)_minmax(0,1fr)_64px_104px_150px] items-center gap-3 px-6 py-2.5 text-left text-[12.5px] hover:bg-white/[0.03]">
+        className="grid w-full grid-cols-[18px_92px_minmax(0,1.2fr)_minmax(0,1fr)_56px_100px_76px_150px] items-center gap-3 px-6 py-2.5 text-left text-[12.5px] hover:bg-white/[0.03]">
         <span className="text-text-3">{open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</span>
         <span className="font-mono text-[11.5px] text-text-2">{t.id}</span>
         <span className="truncate">{t.customer} <span className="text-text-3">→</span> {t.payee}</span>
         <span className="truncate font-mono text-[11.5px] text-text-2">{payeeMasked(t)}</span>
         <span className="text-text-3">{t.channel}</span>
         <span className="text-right tabular-nums">{aed(t.amount)}</span>
+        <span className="flex items-center gap-1.5 tabular-nums"><span className="h-2 w-2 rounded-full" style={{ background: PRIORITY[t.priority].color }} />{t.score}</span>
         <span><StatusPill s={t.status} /></span>
       </button>
       {open && (
@@ -197,11 +206,57 @@ function TxnRow({ t, busy, decide, kinds }: { t: Txn; busy: boolean; decide: (id
             {t.decided_by && <KV k="Decision" v={`${t.decided_by} · ${t.decided_at ? clock(t.decided_at) : ""}`} />}
           </div>
           <div className="mt-2" style={{ color: STATUS[t.status].fg }}>{t.reason}</div>
+          <RiskPanel t={t} k={kinds[t.kind ?? t.gap_kind ?? ""]} />
           {pending && (
             <div className="mt-3 flex flex-wrap gap-2">
-              <button disabled={busy} onClick={() => decide(t.id, "release")} className="rounded-full bg-white px-3.5 py-1.5 text-[12.5px] font-medium text-black disabled:opacity-50">Release payment</button>
+              <button disabled={busy} onClick={() => decide(t.id, "release")} className="rounded-full bg-white px-3.5 py-1.5 text-[12.5px] font-medium text-black disabled:opacity-50">Approve</button>
               <button disabled={busy} onClick={() => decide(t.id, "decline")} className="rounded-full bg-[#e8573a] px-3.5 py-1.5 text-[12.5px] font-medium text-white disabled:opacity-50">Decline</button>
               {t.gap_kind && kinds[t.gap_kind] && <DevinButton k={kinds[t.gap_kind]} compact />}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PriorityBadge({ t }: { t: Txn }) {
+  const p = PRIORITY[t.priority];
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold" style={{ background: `${p.color}26`, color: p.color }}>
+      {p.label} · {t.score}
+    </span>
+  );
+}
+
+/** Why the payment got its score, what the fraud is and what to verify. */
+function RiskPanel({ t, k }: { t: Txn; k?: KindRow }) {
+  const [open, setOpen] = useState(t.status === "held" || t.status === "unverified");
+  return (
+    <div className="mt-3 rounded-xl bg-black/25 p-3">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-2 text-left text-[12px] font-medium text-text-2">
+        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />} Risk assessment · score {t.score}/100 · {PRIORITY[t.priority].label} priority
+        <div className="ml-2 h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full rounded-full" style={{ width: `${t.score}%`, background: PRIORITY[t.priority].color }} />
+        </div>
+      </button>
+      {open && (
+        <div className="mt-2.5 grid grid-cols-2 gap-4 text-[12px]">
+          <div>
+            <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-3">Why this score</div>
+            {(t.factors ?? []).map((f) => (
+              <div key={f.label} className="flex gap-2 py-0.5">
+                <span className="w-9 flex-none text-right font-mono tabular-nums" style={{ color: f.points > 0 ? "#ff9a7c" : "#5fbf7b" }}>{f.points > 0 ? `+${f.points}` : f.points}</span>
+                <span className="text-text-2">{f.label}</span>
+              </div>
+            ))}
+          </div>
+          {k && (
+            <div>
+              <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-3">What this fraud is</div>
+              <div className="text-text-2">{k.explain}</div>
+              <div className="mb-1 mt-2 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-3">Before you decide</div>
+              <ul className="list-disc pl-4 text-text-2">{k.checks.map((c) => <li key={c}>{c}</li>)}</ul>
             </div>
           )}
         </div>
@@ -237,7 +292,7 @@ function DevinButton({ k, compact }: { k: KindRow; compact?: boolean }) {
       <button onClick={start} disabled={loading}
         className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-medium text-white hover:brightness-110 disabled:opacity-60"
         style={{ background: "linear-gradient(135deg,#3b78f0,#8b5cf6)" }}>
-        {loading ? <Loader2 size={13} className="animate-spin" /> : <Bot size={13} />} Implement with Devin
+        {loading ? <Loader2 size={13} className="animate-spin" /> : <Bot size={13} />} Fix with Devin
       </button>
       {err && <span className="text-[11.5px] text-neg">{err}</span>}
     </span>

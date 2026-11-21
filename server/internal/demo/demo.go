@@ -330,10 +330,8 @@ func (d *Demo) Evaluate(paymentID string) (Decision, error) {
 		PayeeID: pay.BeneficiaryIBAN, Payee: map[bool]string{true: "Northwind Supply", false: "Gulf Marine Supplies"}[paymentID == "pay-match"],
 		Amount: pay.AmountMinor / 100, Currency: pay.Currency, Status: "approved", Reason: "No active warning for this account"}
 	d.mu.Unlock()
-	if dec.Decision != "APPROVED" {
-		tx.Status, tx.SignalID, tx.Reason = "held", dec.SignalID, dec.Reason
-		tx.Issuer, tx.Kind = "Emirates NBD", SignalKind
-	}
+	tx.NewPayee = paymentID == "pay-match" // new bank details on a supplier invoice
+	d.check(&tx)
 	d.addTxn(tx)
 	tone := "good"
 	if dec.Decision != "APPROVED" {
