@@ -101,14 +101,22 @@ docker build -t scam-weather . && docker run -p 8080:8080 scam-weather
 
 ### Что нужно для деплоя
 
-Один контейнер на любом хостинге с Docker. На машине установлен Railway CLI, это самый короткий путь:
+Прод: **https://scam-weather.212-43-148-73.sslip.io**. Сервер общий с PAWS (`root@212.43.148.73`), Docker там нет, поэтому приложение стоит так же, как PAWS: нативно, systemd + nginx. От PAWS отделено:
 
-1. `railway login` (вход делает человек в браузере).
-2. Из корня репозитория: `railway init`, затем `railway up`. Railway соберёт `Dockerfile`.
-3. В переменных сервиса задать `PORT=8080`, при необходимости `DEVIN_API_KEY`.
-4. `railway domain` выдаст публичный URL. Проверить `GET /healthz` и консоль.
+- свой системный пользователь `scamweather`, своя папка `/srv/scam-weather` (`releases/`, симлинк `current`, `.env`);
+- свой unit `scam-weather.service`, порт только `127.0.0.1:8090`;
+- свой сайт nginx `/etc/nginx/sites-available/scam-weather` и свой сертификат `scam-weather` (certbot, автопродление). Конфиги PAWS не тронуты.
 
-Запасные варианты: Fly.io или VPS с `docker run`, как в tp-lobby-back. Vercel не подходит для Go-сервера с SSE и фоновым опросом.
+Каждый деплой (≈20 с, собирает web и Go-бинарник локально, заливает релиз, переключает симлинк, хранит 5 последних):
+
+```bash
+./deploy/deploy.sh
+```
+
+Разовая настройка уже сделана (`deploy/setup.sh`). Когда появится нормальный поддомен, завести A-запись на 212.43.148.73 и повторить `DOMAINS="scam-weather.212-43-148-73.sslip.io scam-weather.pawsagent.app" ./deploy/setup.sh`.
+
+Devin на сервере: вписать ключ в `/srv/scam-weather/.env` (`DEVIN_API_KEY=...`) и `systemctl restart scam-weather`.
+Логи: `journalctl -u scam-weather -f`. Откат: `cd /srv/scam-weather && ln -sfn releases/<старый> current && systemctl restart scam-weather`.
 
 Ограничение демо: состояние в памяти, один экземпляр. Масштабировать нельзя, рестарт сбрасывает стенд. Для показа это нормально.
 

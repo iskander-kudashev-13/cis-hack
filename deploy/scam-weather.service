@@ -1,0 +1,22 @@
+[Unit]
+Description=Scam Weather (hackathon demo)
+After=network.target
+
+[Service]
+User=scamweather
+Group=scamweather
+WorkingDirectory=/srv/scam-weather/current
+Environment=PORT=8090
+Environment=WEB_DIR=/srv/scam-weather/current/web
+EnvironmentFile=-/srv/scam-weather/.env
+ExecStart=/srv/scam-weather/current/scamweather
+Restart=always
+RestartSec=2
+MemoryMax=256M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
