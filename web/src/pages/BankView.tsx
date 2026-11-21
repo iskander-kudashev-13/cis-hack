@@ -95,8 +95,8 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
           <section className="rounded-[28px] p-7 text-white" style={{ background: last?.decision === "REVIEW_REQUIRED" ? "#e8573a" : "#1f9254" }}>
             <div className="flex items-start">
               <div>
-                <div className="text-[17px] font-medium">Payment check</div>
-                <div className="text-[13px] text-white/75">a customer sends money</div>
+                <div className="text-[17px] font-medium">Outgoing transfer check</div>
+                <div className="text-[13px] text-white/75">a Bank B customer sends money · checked before it leaves</div>
               </div>
               <div className="flex-1" />
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15"><ArrowUpRight size={18} /></span>
@@ -108,14 +108,17 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
                   {last.decision === "REVIEW_REQUIRED" ? <><AlertTriangle size={18} /> Held for review</> : <><CheckCircle2 size={18} /> Approved</>}
                 </div>
                 <div className="mt-1 text-[13px] text-white/85">to {pay(last.payment_id)?.beneficiary_masked} · {clock(last.at)}</div>
-                <div className="mt-1 text-[12.5px] text-white/75">{last.reason}</div>
+                <div className="mt-1 text-[12.5px] text-white/75">
+                  {last.decision === "REVIEW_REQUIRED" ? "Why: another bank reported this account. " : "Why: no warnings for this account. "}{last.reason}
+                </div>
               </>
-            ) : <div className="mt-6 text-[15px] text-white/85">Choose a payment below to run the check.</div>}
-            <div className="mt-6 flex flex-wrap gap-2">
+            ) : <div className="mt-6 text-[15px] text-white/85">No transfers checked yet.</div>}
+            <div className="mt-6 text-[12px] font-medium uppercase tracking-[0.1em] text-white/70">Simulate a customer transfer</div>
+            <div className="mt-2 flex flex-wrap gap-2">
               {b.payments.map((p) => (
                 <button key={p.payment_id} disabled={busy} onClick={() => run(() => api.evaluate(p.payment_id))}
                   className="rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-50">
-                  {p.kind === "match" ? "Pay reported account" : "Pay normal supplier"}
+                  {p.kind === "match" ? `Pay ${p.beneficiary_masked} (reported)` : `Pay ${p.beneficiary_masked} (clean)`}
                 </button>
               ))}
             </div>
