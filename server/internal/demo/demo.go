@@ -80,7 +80,7 @@ type Demo struct {
 
 	txns       []Txn // Mashreq's outgoing payments, oldest first
 	txnSeq     int
-	flagged    map[string]string    // IBAN -> signal id of active peer warnings (lets the feed hit them)
+	flagged    map[string]string    // IBAN or E.164 mobile -> signal id of active peer warnings (lets the feed hit them)
 	devinTasks map[string]DevinTask // signal kind -> Devin session started for it
 }
 
@@ -189,7 +189,7 @@ func (d *Demo) background(stop <-chan struct{}) {
 		}
 		n := d.Peers[rnd.Intn(len(d.Peers))]
 		k := d.pickKind(rnd)
-		ind, iban := d.indicatorFor(n, k, rnd)
+		ind, payee := d.indicatorFor(n, k, rnd)
 		p := protocol.Payload{
 			Indicator: ind, EvidenceLevel: "issuer_analyst_verified",
 			ReasonCode: k.Reasons[rnd.Intn(len(k.Reasons))], AmountBand: bands[rnd.Intn(len(bands))],
@@ -198,9 +198,9 @@ func (d *Demo) background(stop <-chan struct{}) {
 		}
 		if env, err := n.Publish(k.Kind, p, SignalTTL); err == nil {
 			active = append(active, pub{n, env.SignalID})
-			if iban != "" {
+			if payee != "" {
 				d.mu.Lock()
-				d.flagged[iban] = env.SignalID
+				d.flagged[payee] = env.SignalID
 				d.mu.Unlock()
 			}
 		}
@@ -658,7 +658,7 @@ func (d *Demo) handleDevin(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Kind != "" {
 		k := kindInfo(in.Kind)
-		if k.Normalize == "" {
+		if k.Normalize == "" || k.Covered {
 			writeJSON(w, 400, map[string]string{"error": "unknown or already covered signal kind " + in.Kind})
 			return
 		}

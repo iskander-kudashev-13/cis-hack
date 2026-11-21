@@ -40,7 +40,7 @@ var signalKinds = []KindInfo{
 	{Kind: "mule_account", Label: "Money mule account", Fraud: "Account receiving and forwarding scam proceeds", Indicator: "account_hmac", Covered: true,
 		Reasons: []string{"mule_network_link", "rapid_pass_through"}, Weight: 3, Severity: 6, Explain: "The payee account receives scam proceeds and forwards them quickly. The holder may be recruited or may have sold the account.",
 		Checks: []string{"Check whether the customer knows the payee personally", "Look for round amounts and first-time payees", "Consider declining and filing a suspicious transaction report"}},
-	{Kind: "aani_proxy_scam", Label: "Scam payee on Aani mobile number", Fraud: "Instant payment to a mobile-number alias used in impersonation scams", Indicator: "phone_hmac",
+	{Kind: "aani_proxy_scam", Label: "Scam payee on Aani mobile number", Fraud: "Instant payment to a mobile-number alias used in impersonation scams", Indicator: "phone_hmac", Covered: true,
 		Reasons: []string{"impersonation_scam", "fake_bank_call"}, Normalize: "E.164 UAE mobile number, e.g. +971501234567 (strip spaces, leading 00 → +, local 05 → +9715)",
 		PayField: "creditor.proxy.mobile (Aani alias payments)", Weight: 2, Severity: 8, Explain: "Victims get a call or message from someone posing as the bank or police and are told to send money to a 'safe' mobile number via Aani. Instant payments cannot be recalled.",
 		Checks: []string{"Call the customer and ask whether someone told them to move money", "Remind them the bank never asks for transfers to a safe account", "Release only after the customer confirms who the payee is"}},
@@ -155,12 +155,17 @@ func (d *Demo) newTxn(rnd *mathrand.Rand) {
 	d.mu.Lock()
 	d.txnSeq++
 	seq := d.txnSeq
-	var flagged []string
-	for iban := range d.flagged {
-		flagged = append(flagged, iban)
+	var flagged, flaggedMobiles []string
+	for payee := range d.flagged {
+		if strings.HasPrefix(payee, "+") {
+			flaggedMobiles = append(flaggedMobiles, payee)
+		} else {
+			flagged = append(flagged, payee)
+		}
 	}
 	d.mu.Unlock()
 	sort.Strings(flagged)
+	sort.Strings(flaggedMobiles)
 
 	tx := Txn{ID: fmt.Sprintf("MSQ-%06d", 418200+seq), At: time.Now().UTC(), Customer: customers[rnd.Intn(len(customers))],
 		Payee: payees[rnd.Intn(len(payees))], Currency: "AED", Status: "approved"}
@@ -171,60 +176,35 @@ func (d *Demo) newTxn(rnd *mathrand.Rand) {
 	switch r := rnd.Intn(100); {
 	case r < 22:
 		tx.Channel, tx.PayeeType, tx.PayeeID = "Aani", "mobile", randMobile(rnd)
+		if len(flaggedMobiles) > 0 && rnd.Intn(3) == 0 {
+			tx.PayeeID = flaggedMobiles[rnd.Intn(len(flaggedMobiles))]
+		}
 		tx.Amount = int64(2+rnd.Intn(40)) * 500
 	case r < 36 && len(flagged) > 0:
 		tx.Channel, tx.PayeeType, tx.PayeeID = "UAEFTS", "iban", flagged[rnd.Intn(len(flagged))]
 	default:
 		tx.Channel, tx.PayeeType, tx.PayeeID = "UAEFTS", "iban", randIBAN(rnd)
 	}
-	tx.NewPayee = rnd.Intn(100) < 35 || tx.PayeeType == "iban" && contains(flagged, tx.PayeeID) && rnd.Intn(3) > 0
+	tx.NewPayee = rnd.Intn(100) < 35 || (contains(flagged, tx.PayeeID) || contains(flaggedMobiles, tx.PayeeID)) && rnd.Intn(3) > 0
 	d.check(&tx)
 	d.addTxn(tx)
 }
 
-// check runs the payee against the signals Mashreq can match. Payments that
-// depend on a signal kind the node cannot read yet are held as unverified.
+// check runs the payee against the signals Mashreq can match: IBAN payees
+// against account_hmac alerts, Aani mobile aliases against phone_hmac alerts.
+// A payment whose payee matches an active alert is held with the issuer and reason.
 func (d *Demo) check(tx *Txn) {
-	now := time.Now().UTC()
 	var f []Factor
 	add := func(label string, pts int) { f = append(f, Factor{label, pts}) }
 	tx.Status, tx.Reason = "approved", "No active warning for this account"
 	if tx.PayeeType == "iban" {
 		if e, hit := d.B.Check(tx.PayeeID); hit {
-			k := kindInfo(e.Envelope.Kind)
-			tx.Status, tx.SignalID, tx.Issuer, tx.Kind = "held", e.Envelope.SignalID, issuerName(e.Envelope.Issuer), e.Envelope.Kind
-			tx.Reason = fmt.Sprintf("%s reported this account: %s (%s, %d related cases)", tx.Issuer, k.Label, strings.ReplaceAll(e.Payload.ReasonCode, "_", " "), e.Payload.CaseCount)
-			if e.Payload.EvidenceLevel == "issuer_analyst_verified" {
-				add(fmt.Sprintf("Payee reported by %s, confirmed by their analyst", tx.Issuer), 45)
-			} else {
-				add(fmt.Sprintf("Payee reported by %s, not yet confirmed", tx.Issuer), 25)
-			}
-			add(k.Label+" pattern", k.Severity)
-			c := e.Payload.CaseCount
-			if c > 4 {
-				c = 4
-			}
-			add(fmt.Sprintf("%d related cases at %s", e.Payload.CaseCount, tx.Issuer), 3*c)
+			f = append(f, hold(tx, e, "account")...)
 		}
 	} else {
-		// Aani payments go to a mobile alias. Mashreq's node only matches IBANs,
-		// so alerts about mobile numbers cannot be checked.
-		tx.Reason = "No checkable warnings for this mobile number"
-		var issuers []string
-		n := 0
-		for _, e := range d.B.CacheList() {
-			if e.State(now) == node.StateActive && e.Payload.Indicator.Type == "phone_hmac" {
-				n++
-				if name := issuerName(e.Envelope.Issuer); !contains(issuers, name) {
-					issuers = append(issuers, name)
-				}
-			}
-		}
-		if n > 0 && tx.Amount >= 5000 {
-			tx.Status, tx.GapKind = "unverified", "aani_proxy_scam"
-			tx.Reason = fmt.Sprintf("Cannot check: %d active alerts about Aani mobile numbers from %s, and Mashreq does not support this signal type yet", n, strings.Join(issuers, ", "))
-			add(fmt.Sprintf("Uncovered alerts about mobile payees: %d, from %s", n, strings.Join(issuers, ", ")), 18+6*min(len(issuers), 3))
-			add("Scam payee on Aani mobile number pattern", kindInfo("aani_proxy_scam").Severity)
+		tx.Reason = "No active warning for this mobile number"
+		if e, hit := d.B.CheckMobile(tx.PayeeID); hit {
+			f = append(f, hold(tx, e, "mobile number")...)
 		}
 		add("Instant Aani payment, cannot be recalled", 6)
 	}
@@ -255,6 +235,22 @@ func (d *Demo) check(tx *Txn) {
 	default:
 		tx.Priority = "low"
 	}
+}
+
+// hold marks a payment as held on an active alert and returns its risk factors.
+func hold(tx *Txn, e *node.CacheEntry, payee string) []Factor {
+	k := kindInfo(e.Envelope.Kind)
+	tx.Status, tx.SignalID, tx.Issuer, tx.Kind = "held", e.Envelope.SignalID, issuerName(e.Envelope.Issuer), e.Envelope.Kind
+	tx.Reason = fmt.Sprintf("%s reported this %s: %s (%s, %d related cases)", tx.Issuer, payee, k.Label, strings.ReplaceAll(e.Payload.ReasonCode, "_", " "), e.Payload.CaseCount)
+	var f []Factor
+	if e.Payload.EvidenceLevel == "issuer_analyst_verified" {
+		f = append(f, Factor{fmt.Sprintf("Payee reported by %s, confirmed by their analyst", tx.Issuer), 45})
+	} else {
+		f = append(f, Factor{fmt.Sprintf("Payee reported by %s, not yet confirmed", tx.Issuer), 25})
+	}
+	f = append(f, Factor{k.Label + " pattern", k.Severity})
+	c := min(e.Payload.CaseCount, 4)
+	return append(f, Factor{fmt.Sprintf("%d related cases at %s", e.Payload.CaseCount, tx.Issuer), 3 * c})
 }
 
 func contains(s []string, v string) bool {
@@ -396,9 +392,8 @@ func (d *Demo) indicatorFor(n *node.Node, k KindInfo, rnd *mathrand.Rand) (proto
 		iban := randIBAN(rnd)
 		return n.Indicator(iban), iban
 	case "phone_hmac":
-		ind := n.Indicator(randMobile(rnd))
-		ind.Type = "phone_hmac"
-		return ind, ""
+		mobile := randMobile(rnd)
+		return n.PhoneIndicator(mobile), mobile
 	default:
 		ind := n.Indicator(fmt.Sprintf("%x", rnd.Int63()))
 		ind.Type = k.Indicator

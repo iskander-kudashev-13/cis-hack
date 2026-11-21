@@ -57,9 +57,15 @@ type Payload struct {
 }
 
 type Indicator struct {
-	Type  string `json:"type"` // "account_hmac"
+	Type  string `json:"type"` // IndicatorAccount or IndicatorPhone
 	Value string `json:"value"`
 }
+
+// Indicator types this node can compute and match.
+const (
+	IndicatorAccount = "account_hmac" // HMAC of a normalized IBAN
+	IndicatorPhone   = "phone_hmac"   // HMAC of an E.164 UAE mobile number
+)
 
 // Sealed is a payload encrypted for one recipient.
 type Sealed struct {
@@ -227,7 +233,42 @@ func NormalizeIBAN(s string) string {
 func AccountIndicator(groupKey []byte, iban string) Indicator {
 	m := hmac.New(sha256.New, groupKey)
 	m.Write([]byte(NormalizeIBAN(iban)))
-	return Indicator{Type: "account_hmac", Value: hex.EncodeToString(m.Sum(nil))}
+	return Indicator{Type: IndicatorAccount, Value: hex.EncodeToString(m.Sum(nil))}
+}
+
+// NormalizeUAEMobile returns a UAE mobile number in E.164 form (+9715XXXXXXXX).
+// Spaces, dashes and brackets are removed, a leading 00 becomes +, and a local
+// 05 prefix becomes +9715. Anything that is not a UAE mobile number returns ""
+// so it can never produce an indicator. Every bank must normalize identically.
+func NormalizeUAEMobile(s string) string {
+	s = strings.NewReplacer(" ", "", "-", "", "\t", "", "(", "", ")", "", ".", "").Replace(strings.TrimSpace(s))
+	switch {
+	case strings.HasPrefix(s, "00"):
+		s = "+" + s[2:]
+	case strings.HasPrefix(s, "05"):
+		s = "+971" + s[1:]
+	}
+	if len(s) != 13 || !strings.HasPrefix(s, "+9715") {
+		return ""
+	}
+	for _, r := range s[1:] {
+		if r < '0' || r > '9' {
+			return ""
+		}
+	}
+	return s
+}
+
+// PhoneIndicator returns HMAC-SHA256(groupKey, E.164 UAE mobile) in hex.
+// The value is empty when the number does not normalize.
+func PhoneIndicator(groupKey []byte, mobile string) Indicator {
+	n := NormalizeUAEMobile(mobile)
+	if n == "" {
+		return Indicator{Type: IndicatorPhone}
+	}
+	m := hmac.New(sha256.New, groupKey)
+	m.Write([]byte(n))
+	return Indicator{Type: IndicatorPhone, Value: hex.EncodeToString(m.Sum(nil))}
 }
 
 // RandomID returns a short random id with a prefix.
