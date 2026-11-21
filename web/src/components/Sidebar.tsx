@@ -1,10 +1,11 @@
-import { CloudLightning, LogOut, Layers, MonitorPlay, PanelLeftClose, PanelLeftOpen, UserPlus } from "lucide-react";
+import { ListChecks, CloudLightning, LogOut, Layers, MonitorPlay, PanelLeftClose, PanelLeftOpen, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 
-export type Page = "live" | "signals" | "hub" | "onboarding";
+export type Page = "live" | "txns" | "signals" | "hub" | "onboarding";
 
 const NAV: { id: Page; label: string; icon: ReactNode }[] = [
   { id: "live", label: "Bank", icon: <MonitorPlay size={16} /> },
+  { id: "txns", label: "Payments & alerts", icon: <ListChecks size={16} /> },
   { id: "hub", label: "Network operator", icon: <Layers size={16} /> },
   { id: "onboarding", label: "Devin: new bank", icon: <UserPlus size={16} /> },
 ];
@@ -22,7 +23,7 @@ export function Sidebar({ page, onPage, collapsed, onToggle, user, onSignOut }: 
         {!collapsed && (
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold tracking-tight">Scam Weather</div>
-            <div className="truncate text-[11px] text-text-3">Interbank mule alerts</div>
+            <div className="truncate text-[11px] text-text-3">Interbank fraud signals</div>
           </div>
         )}
       </div>

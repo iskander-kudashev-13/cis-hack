@@ -3,7 +3,7 @@ import {
   AlertTriangle, ArrowUpRight, Bell, Bot, Check, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitPullRequest, Loader2, Send, ShieldAlert, Undo2,
 } from "lucide-react";
 import { api } from "../api/client";
-import type { CacheRow, DevinResponse, State } from "../api/types";
+import type { CacheRow, DevinResponse, KindRow, State } from "../api/types";
 import { clock, money, until, useNow } from "../components/ui";
 
 type Run = (fn: () => Promise<State>) => Promise<void>;
@@ -31,6 +31,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
   const last = b.decisions.length ? b.decisions[b.decisions.length - 1] : null;
   const held = b.decisions.filter((d) => d.decision === "REVIEW_REQUIRED").length;
   const pay = (id: string) => b.payments.find((p) => p.payment_id === id);
+  const kinds = Object.fromEntries((b.ops?.kinds ?? []).map((k) => [k.kind, k]));
   const sigA = a.signal, aActive = !!sigA && sigA.event !== "RETRACT";
 
   return (
@@ -88,7 +89,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
           <DevinEvent />
           <div className="max-h-[430px] overflow-auto">
             {events.length === 0 && <div className="px-6 py-6 text-[13px] text-text-3">No warnings yet.</div>}
-            {events.slice(0, 30).map((e) => <EventRow key={`${e.signal_id}-${e.revision}`} e={e} from={names[e.issuer] ?? e.issuer} now={now} />)}
+            {events.slice(0, 30).map((e) => <EventRow key={`${e.signal_id}-${e.revision}`} e={e} from={names[e.issuer] ?? e.issuer} now={now} kind={kinds[e.kind]} />)}
           </div>
         </section>
 
@@ -147,8 +148,9 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
   );
 }
 
-function EventRow({ e, from, now }: { e: CacheRow; from: string; now: number }) {
+function EventRow({ e, from, now, kind }: { e: CacheRow; from: string; now: number; kind?: KindRow }) {
   const [open, setOpen] = useState(false);
+  const covered = kind ? kind.covered : true;
   const on = e.state === "active";
   return (
     <div className="border-t border-white/5">
@@ -158,10 +160,10 @@ function EventRow({ e, from, now }: { e: CacheRow; from: string; now: number }) 
           <ShieldAlert size={16} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13.5px] font-medium">{REASON[e.reason_code] ?? e.reason_code}</div>
+          <div className="truncate text-[13.5px] font-medium">{kind?.label ?? e.kind} · {REASON[e.reason_code] ?? e.reason_code.replace(/_/g, " ")}</div>
           <div className="truncate text-[12px] text-text-3">from {from} · {e.amount_band} · {e.signal_id}</div>
         </div>
-        <Pill tone={on ? "neg" : "muted"}>{on ? "holding payments" : e.state}</Pill>
+        <Pill tone={on ? (covered ? "neg" : "warn") : "muted"}>{on ? (covered ? "holding payments" : "not covered") : e.state}</Pill>
       </button>
       {open && (
         <div className="mx-6 mb-3 grid grid-cols-2 gap-x-6 gap-y-1 rounded-2xl bg-[#1c1c1f] p-4 text-[12.5px]">
@@ -170,9 +172,11 @@ function EventRow({ e, from, now }: { e: CacheRow; from: string; now: number }) 
           <KV k="Amount band" v={e.amount_band} />
           <KV k="Version" v={`v${e.revision}`} />
           <KV k="Valid for" v={on ? until(e.expires_at, now) : "—"} />
-          <KV k="Account match key" v={`${e.indicator.slice(0, 14)}…`} />
+          <KV k="Match key" v={`${e.indicator.slice(0, 14)}…`} />
           <div className="col-span-2 mt-2 text-[12px] text-text-3">
-            What Mashreq does: any outgoing payment to this account is held for an analyst. The account number itself never left Emirates NBD in clear text.
+            {covered
+              ? <>What Mashreq does: any outgoing payment that matches this alert is held for an analyst. The identifier itself never left {from} in clear text.</>
+              : <>Mashreq cannot check this alert type yet ({kind?.indicator}). Open Payments &amp; alerts to start Devin on it.</>}
           </div>
         </div>
       )}
@@ -253,8 +257,8 @@ function Tile({ title, sub, children, to }: { title: string; sub?: string; child
   );
 }
 
-function Pill({ tone, children }: { tone: "pos" | "neg" | "muted"; children: ReactNode }) {
-  const bg = tone === "pos" ? "#5fbf7b" : tone === "neg" ? "#e8573a" : "#2a2a2e";
+function Pill({ tone, children }: { tone: "pos" | "neg" | "muted" | "warn"; children: ReactNode }) {
+  const bg = tone === "pos" ? "#5fbf7b" : tone === "neg" ? "#e8573a" : tone === "warn" ? "#b8860b" : "#2a2a2e";
   return <span className="inline-flex flex-none items-center rounded-full px-3 py-1 text-[12px] font-medium text-white" style={{ background: bg }}>{children}</span>;
 }
 

@@ -1,4 +1,4 @@
-import type { DevinResponse, State } from "./types";
+import type { DevinResponse, State, Txn } from "./types";
 import { mock } from "./mock";
 
 let mockMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mock")
@@ -25,8 +25,10 @@ export const api = {
     mockMode ? mock.evaluate(payment_id) : req("POST", "/api/bank-b/evaluate", { payment_id }),
   pause: (paused: boolean): Promise<State> => (mockMode ? mock.pause(paused) : req("POST", "/api/hub/pause", { paused })),
   reset: (): Promise<State> => (mockMode ? mock.reset() : req("POST", "/api/reset")),
-  devin: (bank_id = "bank-c", task?: "signal-kind"): Promise<DevinResponse> =>
-    mockMode ? mock.devin(bank_id) : req("POST", "/api/onboarding/devin", { bank_id, task }),
+  devin: (bank_id = "bank-c", task?: "signal-kind", kind?: string): Promise<DevinResponse> =>
+    mockMode ? mock.devin(bank_id) : req("POST", "/api/onboarding/devin", { bank_id, task, kind }),
+  searchTxns: (q: string): Promise<{ txns: Txn[] }> => req("GET", `/api/bank-b/txns?q=${encodeURIComponent(q)}`),
+  decideTxn: (id: string, action: "release" | "decline"): Promise<State> => req("POST", `/api/bank-b/txns/${encodeURIComponent(id)}/decision`, { action }),
 };
 
 /**

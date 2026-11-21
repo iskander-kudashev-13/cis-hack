@@ -55,6 +55,7 @@ export type State = {
     cache: CacheRow[];
     payments: Payment[];
     decisions: Decision[];
+    ops?: Ops;
   };
   hub: {
     paused: boolean; chain_ok: boolean;
@@ -65,5 +66,22 @@ export type State = {
     last_seen?: Record<string, string>;
   };
 };
+
+export type TxnStatus = "approved" | "held" | "unverified" | "released" | "declined";
+export type Txn = {
+  id: string; at: string; customer: string; channel: string; payee: string; payee_type: "iban" | "mobile"; payee_id: string;
+  amount: number; currency: string; status: TxnStatus; reason: string;
+  signal_id?: string; issuer?: string; kind?: string; gap_kind?: string; decided_by?: string; decided_at?: string;
+};
+export type Gap = {
+  signal_id: string; issuer: string; kind: string; label: string; indicator_type: string; reason_code: string;
+  evidence_level: string; expires_at: string; received_at: string;
+};
+export type DevinTask = { kind: string; mode: "api" | "manual"; session_url?: string; at: string };
+export type KindRow = {
+  kind: string; label: string; fraud: string; indicator: string; covered: boolean;
+  active_uncovered: number; affected_txns: number; devin?: DevinTask;
+};
+export type Ops = { txns: Txn[]; pending: Txn[]; counts: Partial<Record<TxnStatus, number>>; total: number; gaps: Gap[]; kinds: KindRow[] };
 
 export type DevinResponse = { mode: "api" | "manual"; session_url?: string; prompt: string };

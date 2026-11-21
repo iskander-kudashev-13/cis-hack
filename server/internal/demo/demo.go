@@ -77,10 +77,15 @@ type Demo struct {
 	wasStale  bool
 	subs      map[chan []byte]bool
 	resetGen  atomic.Int32 // set by Reset so background traffic forgets old signals
+
+	txns       []Txn // Mashreq's outgoing payments, oldest first
+	txnSeq     int
+	flagged    map[string]string    // IBAN -> signal id of active peer warnings (lets the feed hit them)
+	devinTasks map[string]DevinTask // signal kind -> Devin session started for it
 }
 
 func New(hubURL string) (*Demo, error) {
-	d := &Demo{Hub: hub.New(), subs: map[chan []byte]bool{}}
+	d := &Demo{Hub: hub.New(), subs: map[chan []byte]bool{}, flagged: map[string]string{}, devinTasks: map[string]DevinTask{}}
 	gk := node.GroupKey(Audience)
 	var err error
 	if d.A, err = node.New("bank-a", "Emirates NBD", "token-bank-a", Audience, gk, hubURL, d.Log); err != nil {
@@ -151,6 +156,7 @@ func (d *Demo) RunNodes(stop <-chan struct{}) {
 		go p.Run(networkPeers[i].every, stop)
 	}
 	go d.background(stop)
+	go d.txnFeed(stop)
 }
 
 // background makes the rest of the network behave like a live pilot: peers
@@ -162,7 +168,6 @@ func (d *Demo) background(stop <-chan struct{}) {
 		id string
 	}
 	var active []pub
-	reasons := []string{"confirmed_bec_case", "confirmed_app_scam", "mule_network_link", "invoice_redirection"}
 	bands := []string{"10k-50k AED", "50k-100k AED", "100k-500k AED", "500k+ AED"}
 	tick := func() {
 		if d.Hub.Paused() {
@@ -171,20 +176,33 @@ func (d *Demo) background(stop <-chan struct{}) {
 		if len(active) > 6 && rnd.Intn(3) == 0 {
 			i := rnd.Intn(len(active))
 			if _, err := active[i].n.Retract(active[i].id); err == nil {
+				d.mu.Lock()
+				for iban, id := range d.flagged {
+					if id == active[i].id {
+						delete(d.flagged, iban)
+					}
+				}
+				d.mu.Unlock()
 				active = append(active[:i], active[i+1:]...)
 				return
 			}
 		}
 		n := d.Peers[rnd.Intn(len(d.Peers))]
-		iban := fmt.Sprintf("AE%02d%03d%016d", rnd.Intn(90)+10, rnd.Intn(900)+100, rnd.Int63n(1e16))
+		k := d.pickKind(rnd)
+		ind, iban := d.indicatorFor(n, k, rnd)
 		p := protocol.Payload{
-			Indicator: n.Indicator(iban), EvidenceLevel: "issuer_analyst_verified",
-			ReasonCode: reasons[rnd.Intn(len(reasons))], AmountBand: bands[rnd.Intn(len(bands))],
+			Indicator: ind, EvidenceLevel: "issuer_analyst_verified",
+			ReasonCode: k.Reasons[rnd.Intn(len(k.Reasons))], AmountBand: bands[rnd.Intn(len(bands))],
 			ActionHint: "review", FirstSeen: time.Now().UTC().Add(-time.Duration(rnd.Intn(72)) * time.Hour).Truncate(time.Minute),
 			CaseCount: 1 + rnd.Intn(4),
 		}
-		if env, err := n.Publish(SignalKind, p, SignalTTL); err == nil {
+		if env, err := n.Publish(k.Kind, p, SignalTTL); err == nil {
 			active = append(active, pub{n, env.SignalID})
+			if iban != "" {
+				d.mu.Lock()
+				d.flagged[iban] = env.SignalID
+				d.mu.Unlock()
+			}
 		}
 	}
 	// A short burst so the operator dashboard has history right after start.
@@ -231,6 +249,9 @@ func (d *Demo) Reset() {
 	d.signalID = ""
 	d.attempt = 0
 	d.wasStale = false
+	d.txns, d.txnSeq = nil, 0
+	d.flagged = map[string]string{}
+	d.devinTasks = map[string]DevinTask{}
 	d.mu.Unlock()
 	d.Log("system", "Reset: hub and all banks cleared", "info")
 }
@@ -304,7 +325,16 @@ func (d *Demo) Evaluate(paymentID string) (Decision, error) {
 	}
 	d.mu.Lock()
 	d.decisions = append(d.decisions, dec)
+	d.txnSeq++
+	tx := Txn{ID: fmt.Sprintf("MSQ-%06d", 418200+d.txnSeq), At: dec.At, Customer: "Northwind Trading LLC", Channel: "UAEFTS", PayeeType: "iban",
+		PayeeID: pay.BeneficiaryIBAN, Payee: map[bool]string{true: "Northwind Supply", false: "Gulf Marine Supplies"}[paymentID == "pay-match"],
+		Amount: pay.AmountMinor / 100, Currency: pay.Currency, Status: "approved", Reason: "No active warning for this account"}
 	d.mu.Unlock()
+	if dec.Decision != "APPROVED" {
+		tx.Status, tx.SignalID, tx.Reason = "held", dec.SignalID, dec.Reason
+		tx.Issuer, tx.Kind = "Emirates NBD", SignalKind
+	}
+	d.addTxn(tx)
 	tone := "good"
 	if dec.Decision != "APPROVED" {
 		tone = "warn"
@@ -440,7 +470,7 @@ func (d *Demo) State() map[string]any {
 		"timeline": timeline,
 		"bank_a":   map[string]any{"id": "bank-a", "name": "Emirates NBD", "cases": cases, "signal": signal},
 		"bank_b": map[string]any{"id": "bank-b", "name": "Mashreq", "channel": d.B.Channel(), "cache": cache,
-			"payments": pays, "decisions": decisions},
+			"payments": pays, "decisions": decisions, "ops": d.opsState(now)},
 		"hub": map[string]any{"paused": snap.Paused, "chain_ok": snap.ChainOK, "members": nonNil(snap.Members), "stored": stored,
 			"acks": acks, "journal": journal, "last_seen": snap.LastSeen},
 	}
@@ -540,6 +570,20 @@ func (d *Demo) Routes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("GET /api/events", d.handleSSE)
 	mux.HandleFunc("POST /api/onboarding/devin", d.handleDevin)
+	mux.HandleFunc("GET /api/bank-b/txns", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, map[string]any{"txns": d.SearchTxns(r.URL.Query().Get("q"))})
+	})
+	mux.HandleFunc("POST /api/bank-b/txns/{id}/decision", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Action string `json:"action"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if err := d.DecideTxn(r.PathValue("id"), body.Action); err != nil {
+			writeJSON(w, 409, map[string]string{"error": err.Error()})
+			return
+		}
+		state(w)
+	})
 }
 
 func (d *Demo) handleSSE(w http.ResponseWriter, r *http.Request) {
@@ -607,15 +651,50 @@ Do not change the protocol, hub or node packages. Use only the synthetic fixture
 func (d *Demo) handleDevin(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Task string `json:"task"`
+		Kind string `json:"kind"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&in)
 	prompt, title, logText := DevinPrompt, "Scam Weather · onboard Bank C (pacs.008)", "Devin session started for Bank C onboarding"
-	if in.Task == "signal-kind" {
-		prompt, title, logText = DevinSignalKindPrompt, "Scam Weather · Bank B: support wallet_address indicator", "Devin session started: Bank B adds support for wallet_address signals"
+	if in.Task == "signal-kind" && in.Kind == "" {
+		in.Kind = "crypto_offramp_wallet"
+	}
+	if in.Kind != "" {
+		k := kindInfo(in.Kind)
+		if k.Normalize == "" {
+			writeJSON(w, 400, map[string]string{"error": "unknown or already covered signal kind " + in.Kind})
+			return
+		}
+		var issuers []string
+		n, example := 0, ""
+		for _, e := range d.B.CacheList() {
+			if e.Envelope.Kind == k.Kind && e.State(time.Now().UTC()) == node.StateActive {
+				n++
+				example = e.Envelope.SignalID
+				if name := issuerName(e.Envelope.Issuer); !contains(issuers, name) {
+					issuers = append(issuers, name)
+				}
+			}
+		}
+		if len(issuers) == 0 {
+			issuers = []string{"network members"}
+		}
+		prompt = devinKindPrompt(k, issuers, n, example)
+		title = "Scam Weather · Mashreq: cover " + k.Kind
+		logText = "Devin session started: Mashreq adds coverage for " + k.Label
+	}
+	record := func(mode, url string) {
+		if in.Kind == "" {
+			return
+		}
+		d.mu.Lock()
+		d.devinTasks[in.Kind] = DevinTask{Kind: in.Kind, Mode: mode, SessionURL: url, At: time.Now().UTC()}
+		d.mu.Unlock()
+		d.broadcast()
 	}
 	key := os.Getenv("DEVIN_API_KEY")
 	if key == "" {
 		d.Log("devin", "Devin task prepared (manual mode): "+title, "info")
+		record("manual", "")
 		writeJSON(w, 200, map[string]any{"mode": "manual", "prompt": prompt})
 		return
 	}
@@ -638,6 +717,7 @@ func (d *Demo) handleDevin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 502, map[string]any{"mode": "manual", "prompt": prompt, "error": fmt.Sprintf("devin api status %d", resp.StatusCode)})
 		return
 	}
+	record("api", out.URL)
 	d.Log("devin", logText, "good")
 	writeJSON(w, 200, map[string]any{"mode": "api", "session_url": out.URL, "prompt": prompt})
 }

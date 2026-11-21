@@ -6,10 +6,12 @@ import { Sidebar, type Page } from "./components/Sidebar";
 import { OnboardingPage } from "./pages/Onboarding";
 import { OrchestratorView } from "./pages/Orchestrator";
 import { BankView } from "./pages/BankView";
+import { PaymentsPage } from "./pages/Payments";
 import { Landing, type Session } from "./pages/Landing";
 
 const TITLES: Record<Page, string> = {
   live: "Mashreq · fraud desk console",
+  txns: "Mashreq · payments, review queue and uncovered alerts",
   signals: "Network operator · warnings and delivery, no bank data",
   hub: "Network operator · warnings and delivery, no bank data",
   onboarding: "Devin · how a new bank is connected",
@@ -17,7 +19,7 @@ const TITLES: Record<Page, string> = {
 
 function initialPage(): Page {
   const h = window.location.hash.replace("#", "");
-  return (["live", "signals", "hub", "onboarding"] as Page[]).includes(h as Page) ? (h as Page) : "live";
+  return (["live", "txns", "signals", "hub", "onboarding"] as Page[]).includes(h as Page) ? (h as Page) : "live";
 }
 
 export function App() {
@@ -87,6 +89,8 @@ export function App() {
             <div className="flex h-full items-center justify-center text-text-3">Connecting to console API…</div>
           ) : page === "live" ? (
             <BankView state={state} busy={busy} run={run} />
+          ) : page === "txns" ? (
+            <PaymentsPage state={state} busy={busy} run={run} />
           ) : page === "signals" ? (
             <OrchestratorView state={state} />
           ) : page === "hub" ? (
