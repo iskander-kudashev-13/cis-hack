@@ -497,7 +497,7 @@ function StreamRow({ s, state, names }: { s: StoredSignal; state: State; names: 
               const ack = acks.find((x) => x.member === m.id);
               return (
                 <div key={m.id} className="flex items-center gap-2 py-0.5">
-                  <span className="w-[56px]">{m.name}</span>
+                  <span className="w-[130px] truncate">{m.name}</span>
                   {ack ? <span className="inline-flex items-center gap-1 text-pos"><Check size={12} />{ack.latency_ms} ms</span>
                     : <span className="inline-flex items-center gap-1 text-text-3"><Clock size={11} />waiting</span>}
                 </div>

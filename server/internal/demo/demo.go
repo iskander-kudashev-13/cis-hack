@@ -690,6 +690,22 @@ func (d *Demo) handleDevin(w http.ResponseWriter, r *http.Request) {
 		d.mu.Unlock()
 		d.broadcast()
 	}
+	// Recording mode: DEVIN_REPLAY_SESSIONS="kind=url,onboarding=url" answers with an
+	// existing finished session instead of starting a new paid one.
+	if replay := os.Getenv("DEVIN_REPLAY_SESSIONS"); replay != "" {
+		want := in.Kind
+		if want == "" {
+			want = "onboarding"
+		}
+		for _, kv := range strings.Split(replay, ",") {
+			if k, u, ok := strings.Cut(kv, "="); ok && k == want {
+				record("api", u)
+				d.Log("devin", logText, "good")
+				writeJSON(w, 200, map[string]any{"mode": "api", "session_url": u, "prompt": prompt})
+				return
+			}
+		}
+	}
 	key := os.Getenv("DEVIN_API_KEY")
 	if key == "" {
 		d.Log("devin", "Devin task prepared (manual mode): "+title, "info")
