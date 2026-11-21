@@ -1,0 +1,1 @@
+{"txn_ref":"pay-mobile-device","creditor":{"iban":"AE12 0330 0000 1234 5678 901","name":"Rashid M."},"amt":{"value":"18500.00","ccy":"AED"},"channel":{"type":"mobile_banking","device_id":"8C1F4BE2-7A90D35E-6B0F2C9A-41D7E3B5-8F06A2C4-D9E1B7F3-A5C08D2E-6F4B1A97"}}

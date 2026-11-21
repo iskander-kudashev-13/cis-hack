@@ -75,8 +75,12 @@ func (c *Cache) Apply(env protocol.Envelope, p protocol.Payload, now time.Time) 
 	return protocol.AckApplied
 }
 
-// Match returns the active entry whose indicator equals the given one.
+// Match returns the active entry whose indicator (type and value) equals the
+// given one, so an account_hmac never matches a device_hmac with the same value.
 func (c *Cache) Match(ind protocol.Indicator, now time.Time) (*CacheEntry, bool) {
+	if ind.Type == "" || ind.Value == "" {
+		return nil, false
+	}
 	for _, e := range c.entries {
 		if e.State(now) == StateActive && e.Payload.Indicator == ind {
 			return e, true
@@ -159,6 +163,11 @@ func (n *Node) Member() protocol.Member {
 // Indicator hashes an IBAN with the group key. The IBAN never leaves the bank.
 func (n *Node) Indicator(iban string) protocol.Indicator {
 	return protocol.AccountIndicator(n.GroupKey, iban)
+}
+
+// DeviceIndicator hashes a mobile banking device fingerprint with the group key.
+func (n *Node) DeviceIndicator(deviceID string) protocol.Indicator {
+	return protocol.DeviceIndicator(n.GroupKey, deviceID)
 }
 
 func (n *Node) refreshDirectory() error {
@@ -337,6 +346,17 @@ func (n *Node) Check(iban string) (*CacheEntry, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return n.cache.Match(n.Indicator(iban), n.now())
+}
+
+// CheckDevice matches the payer's mobile banking device against the local
+// cache. No network call. An empty device id (not a mobile session) never matches.
+func (n *Node) CheckDevice(deviceID string) (*CacheEntry, bool) {
+	if protocol.NormalizeDeviceID(deviceID) == "" {
+		return nil, false
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.cache.Match(n.DeviceIndicator(deviceID), n.now())
 }
 
 type Channel struct {

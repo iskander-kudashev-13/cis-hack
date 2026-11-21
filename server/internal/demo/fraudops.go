@@ -48,7 +48,7 @@ var signalKinds = []KindInfo{
 		Reasons: []string{"investment_scam_cashout", "mule_network_link"}, Normalize: "lower-case wallet address with whitespace removed",
 		PayField: "creditor.vasp.wallet (transfers to licensed VASPs)", Weight: 1, Severity: 7, Explain: "Scam proceeds are converted to crypto through a licensed exchange and sent to a wallet controlled by the fraud ring.",
 		Checks: []string{"Ask the customer about the investment platform", "Check the exchange and the wallet history if available", "Look for a pattern of growing transfers"}},
-	{Kind: "ato_device", Label: "Account takeover device", Fraud: "Device fingerprint seen in confirmed account takeovers", Indicator: "device_hmac",
+	{Kind: "ato_device", Label: "Account takeover device", Fraud: "Device fingerprint seen in confirmed account takeovers", Indicator: "device_hmac", Covered: true,
 		Reasons: []string{"account_takeover", "sim_swap"}, Normalize: "device fingerprint hash from the mobile banking SDK, lower-case hex",
 		PayField: "channel.device_id (mobile banking session of the payer)", Weight: 1, Severity: 9, Explain: "A criminal logs in to the customer's mobile banking from a device seen in confirmed account takeovers, often after a SIM swap.",
 		Checks: []string{"Confirm the session with the customer over a known channel", "Check for a recent SIM change or new device enrolment", "Block the device if the customer does not recognise it"}},
@@ -85,8 +85,9 @@ type Txn struct {
 	Customer  string     `json:"customer"`
 	Channel   string     `json:"channel"` // UAEFTS (IBAN) or Aani (mobile alias)
 	Payee     string     `json:"payee"`
-	PayeeType string     `json:"payee_type"` // iban | mobile
-	PayeeID   string     `json:"payee_id"`   // full IBAN or mobile number: Mashreq's own data
+	PayeeType string     `json:"payee_type"`          // iban | mobile
+	PayeeID   string     `json:"payee_id"`            // full IBAN or mobile number: Mashreq's own data
+	DeviceID  string     `json:"device_id,omitempty"` // payer's mobile banking device fingerprint, if sent from the app
 	Amount    int64      `json:"amount"`
 	Currency  string     `json:"currency"`
 	Status    string     `json:"status"` // approved | held | unverified | released | declined
@@ -128,6 +129,10 @@ func randIBAN(rnd *mathrand.Rand) string {
 	return fmt.Sprintf("AE%02d%03d%016d", rnd.Intn(90)+10, rnd.Intn(900)+100, rnd.Int63n(1e16))
 }
 
+func randDevice(rnd *mathrand.Rand) string {
+	return fmt.Sprintf("%016x%016x%016x%016x", rnd.Uint64(), rnd.Uint64(), rnd.Uint64(), rnd.Uint64())
+}
+
 func randMobile(rnd *mathrand.Rand) string {
 	return fmt.Sprintf("+9715%d%07d", []int{0, 2, 4, 5, 6, 8}[rnd.Intn(6)], rnd.Intn(1e7))
 }
@@ -159,8 +164,13 @@ func (d *Demo) newTxn(rnd *mathrand.Rand) {
 	for iban := range d.flagged {
 		flagged = append(flagged, iban)
 	}
+	var devices []string
+	for dev := range d.flaggedDev {
+		devices = append(devices, dev)
+	}
 	d.mu.Unlock()
 	sort.Strings(flagged)
+	sort.Strings(devices)
 
 	tx := Txn{ID: fmt.Sprintf("MSQ-%06d", 418200+seq), At: time.Now().UTC(), Customer: customers[rnd.Intn(len(customers))],
 		Payee: payees[rnd.Intn(len(payees))], Currency: "AED", Status: "approved"}
@@ -176,6 +186,12 @@ func (d *Demo) newTxn(rnd *mathrand.Rand) {
 		tx.Channel, tx.PayeeType, tx.PayeeID = "UAEFTS", "iban", flagged[rnd.Intn(len(flagged))]
 	default:
 		tx.Channel, tx.PayeeType, tx.PayeeID = "UAEFTS", "iban", randIBAN(rnd)
+	}
+	switch r := rnd.Intn(100); { // about half of the payments are sent from the mobile banking app
+	case r < 6 && len(devices) > 0:
+		tx.DeviceID = devices[rnd.Intn(len(devices))]
+	case r < 55:
+		tx.DeviceID = randDevice(rnd)
 	}
 	tx.NewPayee = rnd.Intn(100) < 35 || tx.PayeeType == "iban" && contains(flagged, tx.PayeeID) && rnd.Intn(3) > 0
 	d.check(&tx)
@@ -227,6 +243,22 @@ func (d *Demo) check(tx *Txn) {
 			add("Scam payee on Aani mobile number pattern", kindInfo("aani_proxy_scam").Severity)
 		}
 		add("Instant Aani payment, cannot be recalled", 6)
+	}
+	if e, hit := d.B.CheckDevice(tx.DeviceID); hit {
+		k := kindInfo(e.Envelope.Kind)
+		issuer := issuerName(e.Envelope.Issuer)
+		reason := fmt.Sprintf("%s reported the payer's mobile banking device: %s (%s, %d related cases)", issuer, k.Label, strings.ReplaceAll(e.Payload.ReasonCode, "_", " "), e.Payload.CaseCount)
+		if tx.Status == "held" {
+			tx.Reason += "; " + reason
+		} else {
+			tx.Status, tx.SignalID, tx.Issuer, tx.Kind, tx.Reason = "held", e.Envelope.SignalID, issuer, e.Envelope.Kind, reason
+		}
+		if e.Payload.EvidenceLevel == "issuer_analyst_verified" {
+			add(fmt.Sprintf("Payer device reported by %s, confirmed by their analyst", issuer), 45)
+		} else {
+			add(fmt.Sprintf("Payer device reported by %s, not yet confirmed", issuer), 25)
+		}
+		add(k.Label+" pattern", k.Severity)
 	}
 	switch {
 	case tx.Amount >= 100000:
@@ -395,6 +427,9 @@ func (d *Demo) indicatorFor(n *node.Node, k KindInfo, rnd *mathrand.Rand) (proto
 	case "account_hmac":
 		iban := randIBAN(rnd)
 		return n.Indicator(iban), iban
+	case "device_hmac":
+		dev := randDevice(rnd)
+		return n.DeviceIndicator(dev), dev
 	case "phone_hmac":
 		ind := n.Indicator(randMobile(rnd))
 		ind.Type = "phone_hmac"

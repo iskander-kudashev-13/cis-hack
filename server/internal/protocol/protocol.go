@@ -1,6 +1,6 @@
 // Package protocol holds the shared Scam Weather signal contract and the
 // cryptography every bank node uses: Ed25519 signatures, per-recipient
-// X25519 + AES-GCM encryption, and HMAC account indicators.
+// X25519 + AES-GCM encryption, and HMAC account and device indicators.
 //
 // The hub only ever sees Envelope + Sealed ciphertexts + Signature.
 package protocol
@@ -57,7 +57,7 @@ type Payload struct {
 }
 
 type Indicator struct {
-	Type  string `json:"type"` // "account_hmac"
+	Type  string `json:"type"` // "account_hmac", "device_hmac", ...
 	Value string `json:"value"`
 }
 
@@ -225,9 +225,26 @@ func NormalizeIBAN(s string) string {
 
 // AccountIndicator returns HMAC-SHA256(groupKey, normalized IBAN) in hex.
 func AccountIndicator(groupKey []byte, iban string) Indicator {
-	m := hmac.New(sha256.New, groupKey)
-	m.Write([]byte(NormalizeIBAN(iban)))
-	return Indicator{Type: "account_hmac", Value: hex.EncodeToString(m.Sum(nil))}
+	return Indicator{Type: "account_hmac", Value: hmacHex(groupKey, NormalizeIBAN(iban))}
+}
+
+// NormalizeDeviceID turns a device fingerprint hash from the mobile banking
+// SDK into lower-case hex: surrounding whitespace and the space, tab, dash
+// and colon separators some SDK versions print are removed.
+func NormalizeDeviceID(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return strings.NewReplacer(" ", "", "\t", "", "-", "", ":", "").Replace(s)
+}
+
+// DeviceIndicator returns HMAC-SHA256(groupKey, normalized device id) in hex.
+func DeviceIndicator(groupKey []byte, deviceID string) Indicator {
+	return Indicator{Type: "device_hmac", Value: hmacHex(groupKey, NormalizeDeviceID(deviceID))}
+}
+
+func hmacHex(key []byte, s string) string {
+	m := hmac.New(sha256.New, key)
+	m.Write([]byte(s))
+	return hex.EncodeToString(m.Sum(nil))
 }
 
 // RandomID returns a short random id with a prefix.

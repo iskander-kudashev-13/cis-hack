@@ -81,11 +81,12 @@ type Demo struct {
 	txns       []Txn // Mashreq's outgoing payments, oldest first
 	txnSeq     int
 	flagged    map[string]string    // IBAN -> signal id of active peer warnings (lets the feed hit them)
+	flaggedDev map[string]string    // device id -> signal id of active peer ATO device warnings
 	devinTasks map[string]DevinTask // signal kind -> Devin session started for it
 }
 
 func New(hubURL string) (*Demo, error) {
-	d := &Demo{Hub: hub.New(), subs: map[chan []byte]bool{}, flagged: map[string]string{}, devinTasks: map[string]DevinTask{}}
+	d := &Demo{Hub: hub.New(), subs: map[chan []byte]bool{}, flagged: map[string]string{}, flaggedDev: map[string]string{}, devinTasks: map[string]DevinTask{}}
 	gk := node.GroupKey(Audience)
 	var err error
 	if d.A, err = node.New("bank-a", "Emirates NBD", "token-bank-a", Audience, gk, hubURL, d.Log); err != nil {
@@ -177,9 +178,11 @@ func (d *Demo) background(stop <-chan struct{}) {
 			i := rnd.Intn(len(active))
 			if _, err := active[i].n.Retract(active[i].id); err == nil {
 				d.mu.Lock()
-				for iban, id := range d.flagged {
-					if id == active[i].id {
-						delete(d.flagged, iban)
+				for _, m := range []map[string]string{d.flagged, d.flaggedDev} {
+					for raw, id := range m {
+						if id == active[i].id {
+							delete(m, raw)
+						}
 					}
 				}
 				d.mu.Unlock()
@@ -189,7 +192,7 @@ func (d *Demo) background(stop <-chan struct{}) {
 		}
 		n := d.Peers[rnd.Intn(len(d.Peers))]
 		k := d.pickKind(rnd)
-		ind, iban := d.indicatorFor(n, k, rnd)
+		ind, raw := d.indicatorFor(n, k, rnd)
 		p := protocol.Payload{
 			Indicator: ind, EvidenceLevel: "issuer_analyst_verified",
 			ReasonCode: k.Reasons[rnd.Intn(len(k.Reasons))], AmountBand: bands[rnd.Intn(len(bands))],
@@ -198,9 +201,13 @@ func (d *Demo) background(stop <-chan struct{}) {
 		}
 		if env, err := n.Publish(k.Kind, p, SignalTTL); err == nil {
 			active = append(active, pub{n, env.SignalID})
-			if iban != "" {
+			if raw != "" {
 				d.mu.Lock()
-				d.flagged[iban] = env.SignalID
+				if ind.Type == "device_hmac" {
+					d.flaggedDev[raw] = env.SignalID
+				} else {
+					d.flagged[raw] = env.SignalID
+				}
 				d.mu.Unlock()
 			}
 		}
@@ -251,6 +258,7 @@ func (d *Demo) Reset() {
 	d.wasStale = false
 	d.txns, d.txnSeq = nil, 0
 	d.flagged = map[string]string{}
+	d.flaggedDev = map[string]string{}
 	d.devinTasks = map[string]DevinTask{}
 	d.mu.Unlock()
 	d.Log("system", "Reset: hub and all banks cleared", "info")
@@ -319,6 +327,11 @@ func (d *Demo) Evaluate(paymentID string) (Decision, error) {
 		dec.SignalID = e.Envelope.SignalID
 		dec.Revision = e.Envelope.Revision
 		dec.Reason = fmt.Sprintf("Active signal from %s (rev %d): %s, %d related cases", issuerName(e.Envelope.Issuer), e.Envelope.Revision, e.Payload.ReasonCode, e.Payload.CaseCount)
+	} else if e, hit := d.B.CheckDevice(pay.DeviceID); hit {
+		dec.Decision = "REVIEW_REQUIRED"
+		dec.SignalID = e.Envelope.SignalID
+		dec.Revision = e.Envelope.Revision
+		dec.Reason = fmt.Sprintf("Payer device reported by %s (rev %d): %s, %d related cases", issuerName(e.Envelope.Issuer), e.Envelope.Revision, e.Payload.ReasonCode, e.Payload.CaseCount)
 	}
 	if d.B.Channel().Status == "stale" {
 		dec.Reason += " · hub channel stale, using last known signals"
@@ -328,7 +341,7 @@ func (d *Demo) Evaluate(paymentID string) (Decision, error) {
 	d.txnSeq++
 	tx := Txn{ID: fmt.Sprintf("MSQ-%06d", 418200+d.txnSeq), At: dec.At, Customer: "Northwind Trading LLC", Channel: "UAEFTS", PayeeType: "iban",
 		PayeeID: pay.BeneficiaryIBAN, Payee: map[bool]string{true: "Northwind Supply", false: "Gulf Marine Supplies"}[paymentID == "pay-match"],
-		Amount: pay.AmountMinor / 100, Currency: pay.Currency, Status: "approved", Reason: "No active warning for this account"}
+		Amount: pay.AmountMinor / 100, Currency: pay.Currency, DeviceID: pay.DeviceID, Status: "approved", Reason: "No active warning for this account"}
 	d.mu.Unlock()
 	tx.NewPayee = paymentID == "pay-match" // new bank details on a supplier invoice
 	d.check(&tx)
@@ -658,7 +671,7 @@ func (d *Demo) handleDevin(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Kind != "" {
 		k := kindInfo(in.Kind)
-		if k.Normalize == "" {
+		if k.Normalize == "" || k.Covered {
 			writeJSON(w, 400, map[string]string{"error": "unknown or already covered signal kind " + in.Kind})
 			return
 		}

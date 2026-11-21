@@ -4,6 +4,7 @@
 package adapters
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -18,6 +19,7 @@ type Payment struct {
 	BeneficiaryIBAN string // normalized
 	AmountMinor     int64
 	Currency        string
+	DeviceID        string // payer's mobile banking device fingerprint, normalized; empty for other channels
 }
 
 // Case is a confirmed fraud case in the shared shape.
@@ -79,7 +81,9 @@ func ParseBankACase(raw []byte) (Case, error) {
 type BankB struct{}
 
 func (BankB) BankID() string { return "bank-b" }
-func (BankB) Format() string { return "core-banking JSON (txn_ref / creditor.iban / amt)" }
+func (BankB) Format() string {
+	return "core-banking JSON (txn_ref / creditor.iban / amt / channel.device_id)"
+}
 
 func (BankB) ParsePayment(raw []byte) (Payment, error) {
 	var p struct {
@@ -91,9 +95,14 @@ func (BankB) ParsePayment(raw []byte) (Payment, error) {
 			Value string `json:"value"`
 			Ccy   string `json:"ccy"`
 		} `json:"amt"`
+		Channel json.RawMessage `json:"channel"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return Payment{}, fmt.Errorf("bank-b payment: %w", err)
+	}
+	device, err := bankBDevice(p.Channel)
+	if err != nil {
+		return Payment{}, fmt.Errorf("bank-b payment %s: %w", p.TxnRef, err)
 	}
 	if p.Creditor.IBAN == "" {
 		return Payment{}, fmt.Errorf("bank-b payment %s: missing creditor.iban", p.TxnRef)
@@ -103,7 +112,26 @@ func (BankB) ParsePayment(raw []byte) (Payment, error) {
 		return Payment{}, err
 	}
 	return Payment{PaymentID: p.TxnRef, BeneficiaryIBAN: protocol.NormalizeIBAN(p.Creditor.IBAN),
-		AmountMinor: minor, Currency: strings.ToUpper(p.Amt.Ccy)}, nil
+		AmountMinor: minor, Currency: strings.ToUpper(p.Amt.Ccy), DeviceID: device}, nil
+}
+
+// bankBDevice reads channel.device_id. Corporate online payments carry the
+// channel as a plain string ("corporate_online") and have no device.
+func bankBDevice(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 || raw[0] != '{' {
+		return "", nil
+	}
+	var ch struct {
+		DeviceID string `json:"device_id"`
+	}
+	if err := json.Unmarshal(raw, &ch); err != nil {
+		return "", fmt.Errorf("channel: %w", err)
+	}
+	id := protocol.NormalizeDeviceID(ch.DeviceID)
+	if _, err := hex.DecodeString(id); err != nil {
+		return "", fmt.Errorf("channel.device_id %q is not a hex fingerprint", ch.DeviceID)
+	}
+	return id, nil
 }
 
 // toMinor converts "450000.00" to 45000000.

@@ -68,3 +68,36 @@ func TestBankBRejectsMissingIBAN(t *testing.T) {
 		t.Error("expected error")
 	}
 }
+
+func TestBankBDeviceID(t *testing.T) {
+	const want = "8c1f4be27a90d35e6b0f2c9a41d7e3b58f06a2c4d9e1b7f3a5c08d2e6f4b1a97"
+	base := `{"txn_ref":"x","creditor":{"iban":"AE12 0330 0000 1234 5678 901"},"amt":{"value":"1","ccy":"AED"}`
+	cases := []struct {
+		name, channel, want string
+		wantErr             bool
+	}{
+		{"no channel", ``, "", false},
+		{"string channel", `,"channel":"corporate_online"`, "", false},
+		{"mobile session", `,"channel":{"type":"mobile_banking","device_id":"` + want + `"}`, want, false},
+		{"upper-case with separators", `,"channel":{"device_id":" 8C1F4BE2:7A90D35E:6B0F2C9A:41D7E3B5:8F06A2C4:D9E1B7F3:A5C08D2E:6F4B1A97 "}`, want, false},
+		{"object without device", `,"channel":{"type":"branch"}`, "", false},
+		{"not hex", `,"channel":{"device_id":"android-pixel-7"}`, "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := (BankB{}).ParsePayment([]byte(base + c.channel + `}`))
+			if c.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got %+v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.DeviceID != c.want {
+				t.Errorf("DeviceID = %q, want %q", got.DeviceID, c.want)
+			}
+		})
+	}
+}

@@ -201,6 +201,7 @@ function TxnRow({ t, busy, decide, kinds }: { t: Txn; busy: boolean; decide: (id
             <KV k="Time" v={new Date(t.at).toLocaleString("en-GB")} />
             <KV k="Rail" v={t.channel === "Aani" ? "Aani instant payment (mobile alias)" : "UAEFTS bank transfer"} />
             <KV k="Payee account" v={t.payee_id} mono />
+            {t.device_id && <KV k="Payer device" v={`${t.device_id.slice(0, 8)}…${t.device_id.slice(-4)}`} mono />}
             <KV k="Amount" v={aed(t.amount)} />
             {t.signal_id && <KV k="Alert" v={`${t.signal_id} from ${t.issuer}`} mono />}
             {t.decided_by && <KV k="Decision" v={`${t.decided_by} · ${t.decided_at ? clock(t.decided_at) : ""}`} />}
