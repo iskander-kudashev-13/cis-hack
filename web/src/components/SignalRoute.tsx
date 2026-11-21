@@ -1,9 +1,9 @@
-import { Building2, Check, Radio, Send, ShieldCheck, Undo2 } from "lucide-react";
+import { Building2, Check, Radio, ShieldCheck } from "lucide-react";
 import type { State } from "../api/types";
 
-type Props = { state: State; busy: boolean; publish: () => void; withdraw: () => void };
+type Props = { state: State; busy?: boolean; publish?: () => void; withdraw?: () => void };
 
-export function SignalRoute({ state, busy, publish, withdraw }: Props) {
+export function SignalRoute({ state }: Props) {
   const { bank_a: source, bank_b: bank, hub } = state;
   const signal = source.signal;
   const withdrawing = signal?.event === "RETRACT";
@@ -21,18 +21,8 @@ export function SignalRoute({ state, busy, publish, withdraw }: Props) {
       <div className="route-controls">
         <div className="flex flex-wrap items-center gap-2">
           <h2 id="route-title" className="text-[17px] font-medium tracking-tight">Warning delivery</h2>
-          <span className="route-tag">Demo controls</span>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button disabled={busy || (!!signal && !withdrawing)} onClick={publish}
-            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-40">
-            <Send size={14} /> Send warning
-          </button>
-          <button disabled={busy || !signal || withdrawing} onClick={withdraw}
-            className="inline-flex items-center gap-2 rounded-full bg-[#252529] px-4 py-2 text-[13px] font-medium hover:bg-[#303036] disabled:opacity-40">
-            <Undo2 size={14} /> Withdraw
-          </button>
-        </div>
+        <p className="mt-2 text-[12.5px] text-text-3">Path of the latest warning from {source.name}: sent, relayed by the hub, applied by {bank.name}.</p>
       </div>
       <ol className="route-stops" aria-label="Delivery path">
         {stops.map(({ title, detail, Icon }, index) => (

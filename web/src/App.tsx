@@ -7,11 +7,14 @@ import { OnboardingPage } from "./pages/Onboarding";
 import { OrchestratorView } from "./pages/Orchestrator";
 import { BankView } from "./pages/BankView";
 import { PaymentsPage } from "./pages/Payments";
+import { NetworkPage } from "./pages/Network";
+import { DemoPanel } from "./components/DemoPanel";
 import { Landing, type Session } from "./pages/Landing";
 
 const TITLES: Record<Page, string> = {
   live: "Mashreq · fraud desk console",
   txns: "Mashreq · payments, review queue and uncovered alerts",
+  network: "Network graph · how banks and the hub exchange signals",
   signals: "Network operator · warnings and delivery, no bank data",
   hub: "Network operator · warnings and delivery, no bank data",
   onboarding: "Devin · how a new bank is connected",
@@ -19,7 +22,7 @@ const TITLES: Record<Page, string> = {
 
 function initialPage(): Page {
   const h = window.location.hash.replace("#", "");
-  return (["live", "txns", "signals", "hub", "onboarding"] as Page[]).includes(h as Page) ? (h as Page) : "live";
+  return (["live", "txns", "network", "signals", "hub", "onboarding"] as Page[]).includes(h as Page) ? (h as Page) : "live";
 }
 
 export function App() {
@@ -60,6 +63,11 @@ export function App() {
   }, []);
 
   const go = (p: Page) => { setPage(p); window.location.hash = p; };
+  useEffect(() => {
+    const onHash = () => { const h = window.location.hash.replace("#", "") as Page; if (TITLES[h]) setPage(h); };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("sw-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
 
   const enter = (s: Session) => {
@@ -89,6 +97,8 @@ export function App() {
             <div className="flex h-full items-center justify-center text-text-3">Connecting to console API…</div>
           ) : page === "live" ? (
             <BankView state={state} busy={busy} run={run} />
+          ) : page === "network" ? (
+            <NetworkPage state={state} defaultRole={session.role === "operator" ? "operator" : "bank"} />
           ) : page === "txns" ? (
             <PaymentsPage state={state} busy={busy} run={run} />
           ) : page === "signals" ? (
@@ -100,6 +110,7 @@ export function App() {
           )}
         </main>
       </div>
+      {state && <DemoPanel state={state} run={run} go={go} busy={busy} />}
     </div>
   );
 }

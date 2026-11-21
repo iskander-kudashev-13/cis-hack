@@ -23,10 +23,7 @@ export function Header({ title, state, live, busy, onPause, onReset }: {
       {state && (paused
         ? <Badge tone="bad" dot className="px-2 py-1.5 text-[12px]">Hub paused</Badge>
         : <Badge tone="good" dot pulse className="px-2 py-1.5 text-[12px]">Hub live</Badge>)}
-      <Button onClick={() => onPause(!paused)} disabled={!state || busy} variant={paused ? "primary" : "secondary"}>
-        {paused ? <><Play size={14} /> Resume hub</> : <><Pause size={14} /> Pause hub</>}
-      </Button>
-      <Button onClick={onReset} disabled={busy} variant="ghost" title="Reset demo"><RotateCcw size={14} /><span className="sr-only sm:not-sr-only">Reset</span></Button>
+      {paused && <span className="rounded-full bg-[#f5c84b]/15 px-3 py-1 text-[12px] font-medium text-[#f5c84b]">Hub paused</span>}
     </header>
   );
 }

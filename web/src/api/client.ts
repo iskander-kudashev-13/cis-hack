@@ -1,4 +1,4 @@
-import type { DevinResponse, State, Txn } from "./types";
+import type { DevinResponse, RepoPRs, State, Txn } from "./types";
 import { mock } from "./mock";
 
 let mockMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mock")
@@ -27,6 +27,7 @@ export const api = {
   reset: (): Promise<State> => (mockMode ? mock.reset() : req("POST", "/api/reset")),
   devin: (bank_id = "bank-c", task?: "signal-kind", kind?: string): Promise<DevinResponse> =>
     mockMode ? mock.devin(bank_id) : req("POST", "/api/onboarding/devin", { bank_id, task, kind }),
+  prs: (fresh = false): Promise<RepoPRs> => req("GET", `/api/devin/prs${fresh ? "?fresh=1" : ""}`),
   searchTxns: (q: string): Promise<{ txns: Txn[] }> => req("GET", `/api/bank-b/txns?q=${encodeURIComponent(q)}`),
   decideTxn: (id: string, action: "release" | "decline"): Promise<State> => req("POST", `/api/bank-b/txns/${encodeURIComponent(id)}/decision`, { action }),
 };

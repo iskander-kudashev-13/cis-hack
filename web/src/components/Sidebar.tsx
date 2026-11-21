@@ -1,11 +1,12 @@
-import { ListChecks, CloudLightning, LogOut, Layers, MonitorPlay, PanelLeftClose, PanelLeftOpen, UserPlus } from "lucide-react";
+import { Share2, ListChecks, CloudLightning, LogOut, Layers, MonitorPlay, PanelLeftClose, PanelLeftOpen, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 
-export type Page = "live" | "txns" | "signals" | "hub" | "onboarding";
+export type Page = "live" | "txns" | "network" | "signals" | "hub" | "onboarding";
 
 const NAV: { id: Page; label: string; icon: ReactNode }[] = [
   { id: "live", label: "Bank", icon: <MonitorPlay size={16} /> },
   { id: "txns", label: "Payments & alerts", icon: <ListChecks size={16} /> },
+  { id: "network", label: "Network graph", icon: <Share2 size={16} /> },
   { id: "hub", label: "Network operator", icon: <Layers size={16} /> },
   { id: "onboarding", label: "Devin: new bank", icon: <UserPlus size={16} /> },
 ];
@@ -19,7 +20,7 @@ export function Sidebar({ page, onPage, collapsed, onToggle, user, onSignOut }: 
     <nav aria-label="Mobile console" className="mobile-console">
       {NAV.map(({ id, label, icon }) => (
         <button key={id} aria-label={label} title={label} aria-current={page === id ? "page" : undefined} onClick={() => onPage(id)}>
-          {icon}<span>{{ live: "Bank", txns: "Payments", hub: "Network", signals: "Signals", onboarding: "Devin" }[id]}</span>
+          {icon}<span>{{ live: "Bank", txns: "Payments", network: "Graph", hub: "Operator", signals: "Signals", onboarding: "Devin" }[id]}</span>
         </button>
       ))}
       <button onClick={onSignOut} aria-label="Sign out"><LogOut size={16} /><span>Sign out</span></button>

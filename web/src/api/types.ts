@@ -87,4 +87,7 @@ export type KindRow = {
 };
 export type Ops = { txns: Txn[]; pending: Txn[]; counts: Partial<Record<TxnStatus, number>>; total: number; gaps: Gap[]; kinds: KindRow[] };
 
+export type RepoPR = { number: number; title: string; url: string; state: "open" | "draft" | "merged" | "closed"; author: string; branch: string; ci: "success" | "failure" | "pending" | "none"; updated_at: string };
+export type RepoPRs = { repo: string; repo_url: string; prs: RepoPR[]; error?: string };
+
 export type DevinResponse = { mode: "api" | "manual"; session_url?: string; prompt: string };

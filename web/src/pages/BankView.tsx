@@ -32,6 +32,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
   const last = b.decisions.length ? b.decisions[b.decisions.length - 1] : null;
   const held = b.decisions.filter((d) => d.decision === "REVIEW_REQUIRED").length;
   const pay = (id: string) => b.payments.find((p) => p.payment_id === id);
+  const uncovered = (b.ops?.kinds ?? []).filter((k) => !k.covered && k.active_uncovered > 0);
   const kinds = Object.fromEntries((b.ops?.kinds ?? []).map((k) => [k.kind, k]));
 
   return (
@@ -46,11 +47,10 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
       </div>
 
       <section id="sw-payment" className="scroll-mt-4 rounded-[28px] p-7 text-white transition-colors" style={{ background: !last ? "#232326" : last.decision === "REVIEW_REQUIRED" ? "#e8573a" : "#1f9254" }}>
-        <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em]">Demo</span>
-              <span className="text-[17px] font-medium">Outgoing transfer check</span>
+              <span className="text-[17px] font-medium">Latest outgoing transfer check</span>
             </div>
             <div className="mt-0.5 text-[13px] text-white/75">A {b.name} customer sends money. The payee is checked against warnings from other banks before the money leaves.</div>
             {last ? (
@@ -67,16 +67,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
                   {last.decision === "REVIEW_REQUIRED" ? last.reason.replace(/[a-z]+(?:_[a-z]+)+/g, (m) => REASON[m] ?? m.replace(/_/g, " ")) : ""}
                 </div>
               </div>
-            ) : <div className="mt-4 text-[15px] text-white/85">No transfers checked yet. Pay the reported account, send the warning, then pay again.</div>}
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="text-[12px] font-medium uppercase tracking-[0.1em] text-white/70">Simulate a customer transfer</div>
-            {b.payments.map((p) => (
-              <button key={p.payment_id} disabled={busy} onClick={() => run(() => api.evaluate(p.payment_id))}
-                className="rounded-full bg-white px-4 py-2 text-left text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-50">
-                {p.kind === "match" ? `Pay ${p.beneficiary_masked} (reported)` : `Pay ${p.beneficiary_masked} (clean)`}
-              </button>
-            ))}
+            ) : <div className="mt-4 text-[15px] text-white/85">No transfer checked yet. Open Demo scenarios (bottom right) and run scenario 1.</div>}
           </div>
         </div>
       </section>
@@ -119,7 +110,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
         </Tile>
       </div>
 
-      <SignalRoute state={state} busy={busy} publish={() => run(api.publish)} withdraw={() => run(api.retract)} />
+      <SignalRoute state={state} />
 
       <div className="grid items-start gap-4">
         <section id="sw-inbox" className="scroll-mt-4 overflow-hidden rounded-[28px] bg-[#151517]">
@@ -129,7 +120,16 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
             <div className="flex-1" />
             <span className="text-[11.5px] text-text-3">active first · click for details</span>
           </header>
-          <DevinEvent />
+          {uncovered.length > 0 && (
+            <div className="mx-4 mb-3 flex flex-wrap items-center gap-3 rounded-2xl p-4" style={{ background: "linear-gradient(135deg, rgba(59,120,240,0.22), rgba(168,85,247,0.14))" }}>
+              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent text-white"><Bot size={17} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] font-semibold">Other banks send {uncovered.length} alert {uncovered.length === 1 ? "type" : "types"} {b.name} cannot check yet</div>
+                <div className="text-[12.5px] text-text-2">{uncovered.map((k) => `${k.label} (${k.active_uncovered})`).join(" · ")}. Payments that depend on them wait for an analyst. Devin can add support.</div>
+              </div>
+              <a href="#txns" className="rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90">Review in Payments &amp; alerts</a>
+            </div>
+          )}
           <div className="max-h-[430px] overflow-auto">
             {events.length === 0 && <div className="px-6 py-6 text-[13px] text-text-3">No warnings yet.</div>}
             {events.slice(0, 30).map((e) => <EventRow key={`${e.signal_id}-${e.revision}`} e={e} from={names[e.issuer] ?? e.issuer} now={now} kind={kinds[e.kind]} />)}
@@ -173,60 +173,6 @@ function EventRow({ e, from, now, kind }: { e: CacheRow; from: string; now: numb
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-/** A pinned event: the network announced a new signal type; Devin adds support. */
-function DevinEvent() {
-  const [res, setRes] = useState<DevinResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-  async function start() {
-    setLoading(true);
-    try { setRes(await api.devin("bank-b", "signal-kind")); setOpen(true); } catch { /* shown below */ } finally { setLoading(false); }
-  }
-  const steps = ["Event received", "Task sent to Devin", "Devin updates connector + tests", "Draft PR for your engineers"];
-  const reached = res?.mode === "api" ? 2 : 1;
-  return (
-    <div className="mx-4 mb-3 rounded-2xl p-4" style={{ background: "linear-gradient(135deg, rgba(59,120,240,0.22), rgba(168,85,247,0.14))" }}>
-      <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent text-white"><Bot size={17} /></span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[13.5px] font-semibold">Action required · new signal type</span>
-            <Pill tone="neg">not supported yet</Pill>
-          </div>
-          <div className="mt-0.5 text-[12.5px] text-text-2">
-            The network announced schema v2: warnings can now point to a <b>crypto wallet</b>, not only an IBAN. Your connector ignores these warnings until it is updated.
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button onClick={start} disabled={loading}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-60">
-              {loading ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />} Implement with Devin
-            </button>
-            {res?.session_url && <a href={res.session_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12.5px] text-accent hover:underline">Devin session <ExternalLink size={12} /></a>}
-            <a href={PR_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12.5px] text-text-3 hover:text-text"><GitPullRequest size={12} /> example PR from Devin</a>
-            {res && <button onClick={() => setOpen(!open)} className="text-[12.5px] text-text-3 hover:text-text">{open ? "Hide task" : "Show task"}</button>}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-1.5 2xl:grid-cols-4">
-            {steps.map((s, i) => (
-              <div key={s} className="flex items-center gap-1.5 rounded-full bg-black/25 px-2.5 py-1.5 text-[11.5px]">
-                <span className="flex h-4 w-4 flex-none items-center justify-center rounded-full text-[9px] font-bold text-white"
-                  style={{ background: i < reached ? "#5fbf7b" : i === reached ? "#3b78f0" : "#3a3a3f" }}>
-                  {i < reached ? <Check size={10} /> : i + 1}
-                </span>
-                <span className="leading-tight">{s}</span>
-              </div>
-            ))}
-          </div>
-          {res && open && (
-            <pre className="mt-3 max-h-[200px] overflow-auto whitespace-pre-wrap rounded-xl bg-black/35 p-3 font-mono text-[11px] text-text-2">
-              {res.mode === "manual" ? "Devin API key is not set on this server: paste this task into Devin.\n\n" : ""}{res.prompt}
-            </pre>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

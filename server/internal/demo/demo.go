@@ -568,6 +568,7 @@ func (d *Demo) Routes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("GET /api/events", d.handleSSE)
 	mux.HandleFunc("POST /api/onboarding/devin", d.handleDevin)
+	mux.HandleFunc("GET /api/devin/prs", handlePRs)
 	mux.HandleFunc("GET /api/bank-b/txns", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"txns": d.SearchTxns(r.URL.Query().Get("q"))})
 	})
@@ -676,7 +677,7 @@ func (d *Demo) handleDevin(w http.ResponseWriter, r *http.Request) {
 		if len(issuers) == 0 {
 			issuers = []string{"network members"}
 		}
-		prompt = devinKindPrompt(k, issuers, n, example)
+		prompt = devinRepoPrompt(k, issuers, n, example)
 		title = "Scam Weather · Mashreq: cover " + k.Kind
 		logText = "Devin session started: Mashreq adds coverage for " + k.Label
 	}

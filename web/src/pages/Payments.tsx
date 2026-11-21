@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, Bot, Check, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Loader2, Search, ShieldAlert, ShieldCheck, ShieldQuestion, X } from "lucide-react";
+import { GitPullRequest, RefreshCw, AlertTriangle, Bot, Check, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Loader2, Search, ShieldAlert, ShieldCheck, ShieldQuestion, X } from "lucide-react";
 import { api } from "../api/client";
-import type { KindRow, Priority, State, Txn, TxnStatus } from "../api/types";
+import type { KindRow, Priority, RepoPRs, State, Txn, TxnStatus } from "../api/types";
 import { clock } from "../components/ui";
 
 type Run = (fn: () => Promise<State>) => Promise<void>;
@@ -154,6 +154,8 @@ export function PaymentsPage({ state, busy, run }: { state: State; busy: boolean
               ))}
             </div>
           </Card>
+
+          <DevinPRs />
 
           <Card title="Uncovered alerts log" right={<span className="text-[12px] text-text-3">from other banks · {ops.gaps.length}</span>}>
             <div className="max-h-[420px] overflow-auto pb-2">
@@ -327,3 +329,52 @@ function StatusPill({ s }: { s: TxnStatus }) {
 const KV = ({ k, v, mono }: { k: string; v: string; mono?: boolean }) => (
   <div className="flex gap-2"><span className="w-[100px] flex-none text-text-3">{k}</span><span className={`min-w-0 break-all ${mono ? "font-mono text-[11.5px]" : ""}`}>{v}</span></div>
 );
+
+const PR_STATE: Record<string, { label: string; color: string }> = {
+  draft: { label: "Draft", color: "#9a9aa3" },
+  open: { label: "Open", color: "#5fbf7b" },
+  merged: { label: "Merged", color: "#a78bfa" },
+  closed: { label: "Closed", color: "#e8573a" },
+};
+const CI: Record<string, { label: string; color: string }> = {
+  success: { label: "tests pass", color: "#5fbf7b" },
+  failure: { label: "tests fail", color: "#e8573a" },
+  pending: { label: "tests running", color: "#f5c84b" },
+  none: { label: "no CI yet", color: "#6b6b73" },
+};
+
+/** Pull requests Devin opened in the bank's integration repository. */
+function DevinPRs() {
+  const [data, setData] = useState<RepoPRs | null>(null);
+  const [loading, setLoading] = useState(false);
+  const load = (fresh = false) => { setLoading(true); api.prs(fresh).then(setData).catch(() => {}).finally(() => setLoading(false)); };
+  useEffect(() => { load(); const t = setInterval(() => load(), 60000); return () => clearInterval(t); }, []);
+  return (
+    <Card title="Pull requests from Devin" right={
+      <button onClick={() => load(true)} className="flex items-center gap-1 text-[12px] text-text-3 hover:text-text">
+        <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> refresh
+      </button>}>
+      <div className="px-6 pb-2 text-[12px] text-text-3">
+        Bank integration repo: {data ? <a href={data.repo_url} target="_blank" rel="noreferrer" className="font-mono text-accent hover:underline">{data.repo}</a> : "…"}
+      </div>
+      <div className="pb-3">
+        {data?.error && <div className="px-6 py-2 text-[12px] text-text-3">GitHub is not reachable right now ({data.error}).</div>}
+        {data && !data.error && data.prs.length === 0 && <div className="px-6 py-2 text-[12.5px] text-text-3">No pull requests yet. Press Fix with Devin on an uncovered alert type; Devin's PR appears here.</div>}
+        {data?.prs.map((p) => (
+          <a key={p.number} href={p.url} target="_blank" rel="noreferrer" className="flex items-start gap-3 border-t border-white/5 px-6 py-2.5 hover:bg-white/[0.03]">
+            <GitPullRequest size={15} className="mt-0.5 flex-none" style={{ color: PR_STATE[p.state].color }} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-medium">{p.title} <span className="text-text-3">#{p.number}</span></div>
+              <div className="flex flex-wrap items-center gap-x-2 text-[11.5px] text-text-3">
+                <span style={{ color: PR_STATE[p.state].color }}>{PR_STATE[p.state].label}</span>
+                <span>·</span><span className="font-mono">{p.branch}</span>
+                <span>·</span><span>by {p.author}</span>
+                <span>·</span><span style={{ color: CI[p.ci].color }}>{CI[p.ci].label}</span>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </Card>
+  );
+}

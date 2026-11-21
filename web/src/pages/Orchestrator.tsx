@@ -34,7 +34,7 @@ export function OrchestratorView({ state }: { state: State }) {
       <div className="flex items-end gap-3">
         <div>
           <div className="text-[24px] font-medium tracking-tight">Network operations</div>
-          <div className="text-[12.5px] text-text-3">UAE BEC pilot · routing metadata only, contents end-to-end encrypted</div>
+          <div className="text-[12.5px] text-text-3">UAE fraud signal network · routing metadata only, contents end-to-end encrypted</div>
         </div>
         <div className="flex-1" />
         <span className="font-mono text-[12px] text-text-3">{new Date(now).toLocaleTimeString("en-GB")}</span>

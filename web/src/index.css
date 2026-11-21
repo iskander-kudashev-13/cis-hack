@@ -127,3 +127,9 @@ body {
   .txn-list-row > :nth-child(8) { justify-self: end; }
   .txn-risk-label { display: inline; }
 }
+
+/* Presenter-only demo controls: striped amber so they never read as product UI. */
+.demo-fab, .demo-stripes {
+  background: repeating-linear-gradient(135deg, #f5c84b 0 14px, #f0b92a 14px 28px);
+}
+.demo-panel { border: 2px solid #f5c84b; }
