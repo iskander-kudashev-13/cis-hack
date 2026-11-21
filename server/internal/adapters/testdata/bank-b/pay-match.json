@@ -1,0 +1,1 @@
+{"txn_ref":"pay-match","creditor":{"iban":"ae07 0331 2345 6789 0123 456","name":"Northwind Supply"},"amt":{"value":"450000.00","ccy":"aed"},"channel":"corporate_online"}

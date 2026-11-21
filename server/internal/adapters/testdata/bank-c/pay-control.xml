@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr><MsgId>BANKC-20261121-0002</MsgId><CreDtTm>2026-11-21T09:16:00</CreDtTm><NbOfTxs>1</NbOfTxs></GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId><EndToEndId>pay-c-control</EndToEndId></PmtId>
+      <IntrBkSttlmAmt Ccy="AED">12500.50</IntrBkSttlmAmt>
+      <Cdtr><Nm>Al Noor Interiors</Nm></Cdtr>
+      <CdtrAcct><Id><IBAN>AE46 0260 0012 3456 7890 101</IBAN></Id></CdtrAcct>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>

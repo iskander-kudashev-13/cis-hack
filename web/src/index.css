@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Geist";
+  src: url("./fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("./fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* Dark palette from tp-crm is the default. */
+:root {
+  --bg: #0c0d0f;
+  --surface: #16181c;
+  --surface-2: #1f2228;
+  --surface-3: #1d2127;
+  --sidebar: #070809;
+  --border: #272a30;
+  --border-2: #33373e;
+  --text: #eef1f4;
+  --text-2: #a3acb7;
+  --text-3: #6c757f;
+  --accent: #4d86e8;
+  --accent-soft: #15233b;
+  --pos: #1f9254;
+  --neg: #d14343;
+  --warn: #d9920a;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; padding: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Geist", system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: rgba(140, 150, 160, 0.22); border-radius: 999px; }
+:hover::-webkit-scrollbar-thumb { background: rgba(140, 150, 160, 0.42); }
+::-webkit-scrollbar-track { background: transparent; }
+* { scrollbar-width: thin; scrollbar-color: rgba(140, 150, 160, 0.28) transparent; }
+
+@keyframes sw-pop {
+  0% { transform: scale(0.96); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.sw-pop { animation: sw-pop 260ms var(--ease-out); }
+@keyframes sw-fade { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.sw-fade { animation: sw-fade 220ms var(--ease-out); }
+@keyframes sw-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.sw-pulse { animation: sw-pulse 1.6s ease-in-out infinite; }
