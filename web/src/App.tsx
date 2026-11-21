@@ -6,6 +6,7 @@ import { Sidebar, type Page } from "./components/Sidebar";
 import { OnboardingPage } from "./pages/Onboarding";
 import { OrchestratorView } from "./pages/Orchestrator";
 import { BankView } from "./pages/BankView";
+import { Landing, type Session } from "./pages/Landing";
 
 const TITLES: Record<Page, string> = {
   live: "Bank · what a member bank does and sees",
@@ -21,6 +22,9 @@ function initialPage(): Page {
 
 export function App() {
   const [page, setPage] = useState<Page>(initialPage);
+  const [session, setSession] = useState<Session | null>(() => {
+    try { const raw = localStorage.getItem("sw-session"); return raw ? (JSON.parse(raw) as Session) : null; } catch { return null; }
+  });
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("sw-sidebar") === "1"; } catch { return false; } });
   const [state, setState] = useState<State | null>(null);
   const [live, setLive] = useState<LiveMode>("connecting");
@@ -56,9 +60,20 @@ export function App() {
   const go = (p: Page) => { setPage(p); window.location.hash = p; };
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("sw-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
 
+  const enter = (s: Session) => {
+    try { localStorage.setItem("sw-session", JSON.stringify(s)); } catch { /* ignore */ }
+    setSession(s);
+    go(s.role === "operator" ? "hub" : "live");
+  };
+  const signOut = () => {
+    try { localStorage.removeItem("sw-session"); } catch { /* ignore */ }
+    setSession(null);
+  };
+  if (!session) return <Landing onEnter={enter} />;
+
   return (
     <div className="flex h-full overflow-hidden">
-      <Sidebar page={page} onPage={go} collapsed={collapsed} onToggle={toggle} />
+      <Sidebar page={page} onPage={go} collapsed={collapsed} onToggle={toggle} user={session} onSignOut={signOut} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header title={TITLES[page]} state={state} live={live} busy={busy}
           onPause={(p) => run(() => api.pause(p))} onReset={() => run(api.reset)} />

@@ -62,6 +62,7 @@ export type State = {
     stored: StoredSignal[];
     acks: Ack[];
     journal: JournalEntry[];
+    last_seen?: Record<string, string>;
   };
 };
 

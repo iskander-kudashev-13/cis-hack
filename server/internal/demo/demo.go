@@ -8,11 +8,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	mathrand "math/rand"
 	"net/http"
 	"os"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/iskander-kudashev-13/cis-hack/server/internal/adapters"
@@ -74,6 +76,7 @@ type Demo struct {
 	attempt   int
 	wasStale  bool
 	subs      map[chan []byte]bool
+	resetGen  atomic.Int32 // set by Reset so background traffic forgets old signals
 }
 
 func New(hubURL string) (*Demo, error) {
@@ -147,6 +150,61 @@ func (d *Demo) RunNodes(stop <-chan struct{}) {
 	for i, p := range d.Peers {
 		go p.Run(networkPeers[i].every, stop)
 	}
+	go d.background(stop)
+}
+
+// background makes the rest of the network behave like a live pilot: peers
+// report mule accounts of their own and withdraw some of them later.
+func (d *Demo) background(stop <-chan struct{}) {
+	rnd := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
+	type pub struct {
+		n  *node.Node
+		id string
+	}
+	var active []pub
+	reasons := []string{"confirmed_bec_case", "confirmed_app_scam", "mule_network_link", "invoice_redirection"}
+	bands := []string{"10k-50k AED", "50k-100k AED", "100k-500k AED", "500k+ AED"}
+	tick := func() {
+		if d.Hub.Paused() {
+			return
+		}
+		if len(active) > 6 && rnd.Intn(3) == 0 {
+			i := rnd.Intn(len(active))
+			if _, err := active[i].n.Retract(active[i].id); err == nil {
+				active = append(active[:i], active[i+1:]...)
+				return
+			}
+		}
+		n := d.Peers[rnd.Intn(len(d.Peers))]
+		iban := fmt.Sprintf("AE%02d%03d%016d", rnd.Intn(90)+10, rnd.Intn(900)+100, rnd.Int63n(1e16))
+		p := protocol.Payload{
+			Indicator: n.Indicator(iban), EvidenceLevel: "issuer_analyst_verified",
+			ReasonCode: reasons[rnd.Intn(len(reasons))], AmountBand: bands[rnd.Intn(len(bands))],
+			ActionHint: "review", FirstSeen: time.Now().UTC().Add(-time.Duration(rnd.Intn(72)) * time.Hour).Truncate(time.Minute),
+			CaseCount: 1 + rnd.Intn(4),
+		}
+		if env, err := n.Publish(SignalKind, p, SignalTTL); err == nil {
+			active = append(active, pub{n, env.SignalID})
+		}
+	}
+	// A short burst so the operator dashboard has history right after start.
+	for i := 0; i < 14; i++ {
+		tick()
+		time.Sleep(120 * time.Millisecond)
+	}
+	t := time.NewTicker(7 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+			if d.resetGen.Load() != 0 {
+				active, _ = nil, d.resetGen.Swap(0)
+			}
+			tick()
+		}
+	}
 }
 
 func (d *Demo) Log(actor, text, tone string) {
@@ -166,6 +224,7 @@ func (d *Demo) Reset() {
 	for _, p := range d.Peers {
 		p.Reset()
 	}
+	d.resetGen.Store(1)
 	d.mu.Lock()
 	d.timeline = nil
 	d.decisions = nil
@@ -366,8 +425,14 @@ func (d *Demo) State() map[string]any {
 	}
 
 	acks := snap.Acks
-	if acks == nil {
-		acks = nil
+	// Keep the payload small while background traffic runs: recent history only.
+	stored := nonNilS(snap.Stored)
+	if len(stored) > 40 {
+		stored = stored[len(stored)-40:]
+	}
+	journal := snap.Journal
+	if len(journal) > 600 {
+		journal = journal[len(journal)-600:]
 	}
 	return map[string]any{
 		"now":      now,
@@ -375,8 +440,8 @@ func (d *Demo) State() map[string]any {
 		"bank_a":   map[string]any{"id": "bank-a", "name": "Bank A · victim's bank", "cases": cases, "signal": signal},
 		"bank_b": map[string]any{"id": "bank-b", "name": "Bank B", "channel": d.B.Channel(), "cache": cache,
 			"payments": pays, "decisions": decisions},
-		"hub": map[string]any{"paused": snap.Paused, "chain_ok": snap.ChainOK, "members": nonNil(snap.Members), "stored": nonNilS(snap.Stored),
-			"acks": acks, "journal": snap.Journal},
+		"hub": map[string]any{"paused": snap.Paused, "chain_ok": snap.ChainOK, "members": nonNil(snap.Members), "stored": stored,
+			"acks": acks, "journal": journal, "last_seen": snap.LastSeen},
 	}
 }
 

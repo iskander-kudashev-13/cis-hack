@@ -1,4 +1,4 @@
-import { CloudLightning, Layers, MonitorPlay, PanelLeftClose, PanelLeftOpen, UserPlus } from "lucide-react";
+import { CloudLightning, LogOut, Layers, MonitorPlay, PanelLeftClose, PanelLeftOpen, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 
 export type Page = "live" | "signals" | "hub" | "onboarding";
@@ -9,8 +9,9 @@ const NAV: { id: Page; label: string; icon: ReactNode }[] = [
   { id: "onboarding", label: "Devin: new bank", icon: <UserPlus size={16} /> },
 ];
 
-export function Sidebar({ page, onPage, collapsed, onToggle }: {
+export function Sidebar({ page, onPage, collapsed, onToggle, user, onSignOut }: {
   page: Page; onPage: (p: Page) => void; collapsed: boolean; onToggle: () => void;
+  user?: { name: string; org: string }; onSignOut?: () => void;
 }) {
   return (
     <aside className={`flex h-full flex-none flex-col border-r border-border bg-sidebar pb-3 pt-3.5 transition-[width] duration-200 ${collapsed ? "w-[56px] px-2" : "w-[200px] px-3"}`}>
@@ -40,6 +41,16 @@ export function Sidebar({ page, onPage, collapsed, onToggle }: {
         })}
       </nav>
       <div className="flex-1" />
+      {user && !collapsed && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-border px-2 py-2">
+          <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">{user.name.slice(0, 1).toUpperCase()}</span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[12px] font-medium">{user.name}</div>
+            <div className="truncate text-[11px] text-text-3">{user.org}</div>
+          </div>
+          <button onClick={onSignOut} title="Sign out" className="text-text-3 hover:text-text"><LogOut size={14} /></button>
+        </div>
+      )}
       <button onClick={onToggle} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         className={`flex items-center gap-2 rounded-lg py-[6px] text-[12px] text-text-3 transition hover:bg-surface-2 hover:text-text ${collapsed ? "justify-center" : "px-[9px]"}`}>
         {collapsed ? <PanelLeftOpen size={16} /> : <><PanelLeftClose size={16} /><span>Collapse</span></>}

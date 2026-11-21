@@ -37,6 +37,7 @@ type memberState struct {
 	token   string
 	groups  map[string]bool
 	inbox   []protocol.Delivery
+	seen    time.Time // last time this member polled its inbox
 }
 
 type ackRecord struct {
@@ -240,6 +241,7 @@ func (h *Hub) Inbox(token string, after int64) ([]protocol.Delivery, int64, erro
 	if !ok {
 		return nil, after, ErrUnauthorized
 	}
+	h.members[id].seen = h.now().UTC()
 	out := []protocol.Delivery{}
 	next := after
 	for _, d := range h.members[id].inbox {
@@ -281,20 +283,24 @@ func (h *Hub) Ack(token, deliveryID string, status protocol.AckStatus) (ackRecor
 
 // Snapshot is the hub's own view: metadata and ciphertext only.
 type Snapshot struct {
-	Paused  bool                    `json:"paused"`
-	Members []protocol.Member       `json:"members"`
-	Stored  []protocol.SignedSignal `json:"stored"`
-	Acks    []ackRecord             `json:"acks"`
-	Journal []JournalEntry          `json:"journal"`
-	ChainOK bool                    `json:"chain_ok"`
+	Paused   bool                    `json:"paused"`
+	Members  []protocol.Member       `json:"members"`
+	Stored   []protocol.SignedSignal `json:"stored"`
+	Acks     []ackRecord             `json:"acks"`
+	Journal  []JournalEntry          `json:"journal"`
+	ChainOK  bool                    `json:"chain_ok"`
+	LastSeen map[string]time.Time    `json:"last_seen"`
 }
 
 func (h *Hub) Snapshot() Snapshot {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	s := Snapshot{Paused: h.paused, Stored: append([]protocol.SignedSignal{}, h.stored...), Journal: append([]JournalEntry{}, h.journal...), Acks: []ackRecord{}, ChainOK: true}
-	for _, m := range h.members {
+	s := Snapshot{Paused: h.paused, Stored: append([]protocol.SignedSignal{}, h.stored...), Journal: append([]JournalEntry{}, h.journal...), Acks: []ackRecord{}, ChainOK: true, LastSeen: map[string]time.Time{}}
+	for id, m := range h.members {
 		s.Members = append(s.Members, m.member)
+		if !m.seen.IsZero() {
+			s.LastSeen[id] = m.seen
+		}
 	}
 	for _, a := range h.acks {
 		s.Acks = append(s.Acks, a)
