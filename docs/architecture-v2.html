@@ -1,0 +1,372 @@
+<title>Архитектура Scam Weather v2</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: swimlane timeline of a cross-border payment leads; components, signal and Devin follow as reference sections */
+:root {
+  --bg: #F1F4F6;
+  --surface: #FFFFFF;
+  --band: #E8EDF1;
+  --fg: #132029;
+  --muted: #586874;
+  --line: #C4CED6;
+  --ours: #1F5F8B;
+  --ours-soft: #E0ECF5;
+  --devin: #B4530C;
+  --devin-soft: #FBEBDA;
+  --risk: #A3302A;
+  --risk-soft: #F8E3E1;
+  --bank-soft: #EDF0F2;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E151B; --surface: #16212A; --band: #121C24; --fg: #E5EBF0; --muted: #93A3B0; --line: #2D3B47;
+    --ours: #72B3E0; --ours-soft: #15303F; --devin: #F2A54C; --devin-soft: #3A2814;
+    --risk: #F08A80; --risk-soft: #3A1B19; --bank-soft: #1B2731;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E151B; --surface: #16212A; --band: #121C24; --fg: #E5EBF0; --muted: #93A3B0; --line: #2D3B47;
+  --ours: #72B3E0; --ours-soft: #15303F; --devin: #F2A54C; --devin-soft: #3A2814;
+  --risk: #F08A80; --risk-soft: #3A1B19; --bank-soft: #1B2731;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-sans); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px; }
+.read { max-width: 760px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+h1 { font-size: clamp(32px, 5.5vw, 48px); line-height: 1.08; margin: 0 0 16px; letter-spacing: -.02em; text-wrap: balance; }
+h2 { font-size: 24px; margin: 0 0 8px; letter-spacing: -.01em; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0 0 20px; max-width: 70ch; }
+.lead { font-size: 18px; margin: 0; max-width: 68ch; }
+p { margin: 0; }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--ours-soft); padding: 1px 5px; border-radius: 4px; }
+
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px 20px 18px; display: flex; flex-direction: column; gap: 16px; }
+.scroll { overflow-x: auto; }
+svg.lane { display: block; width: 100%; min-width: 860px; height: auto; font-family: var(--font-sans); }
+
+.points { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.pt { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: start; font-size: 14.5px; color: var(--muted); }
+.pt b { color: var(--fg); font-weight: 600; display: block; }
+.num { width: 26px; height: 26px; border-radius: 50%; background: var(--ours); color: var(--surface); font-family: var(--font-mono); font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* svg */
+.band { fill: var(--band); }
+.sep { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; }
+.l-name { fill: var(--fg); font-size: 14px; font-weight: 600; }
+.l-sub { fill: var(--muted); font-size: 11.5px; }
+.phase { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; }
+.bx-ours { fill: var(--ours-soft); stroke: var(--ours); stroke-width: 1.5; }
+.bx-bank { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+.bx-net { fill: var(--bank-soft); stroke: var(--line); stroke-width: 1.2; }
+.bx-risk { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 1.5; }
+.t1 { fill: var(--fg); font-size: 13px; font-weight: 600; }
+.t2 { fill: var(--muted); font-size: 11.5px; }
+.note { fill: var(--muted); font-size: 11.5px; }
+.lbl { fill: var(--ours); font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; }
+.lbl-risk { fill: var(--risk); font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; }
+.dot { fill: var(--ours); }
+.dot-t { fill: var(--surface); font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+.w-sig { stroke: var(--ours); stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+.w-pay { stroke: var(--fg); stroke-width: 2; fill: none; }
+.w-thin { stroke: var(--muted); stroke-width: 1.3; fill: none; stroke-dasharray: 4 4; }
+.w-risk { stroke: var(--risk); stroke-width: 2; fill: none; }
+.ah-sig { fill: var(--ours); } .ah-pay { fill: var(--fg); } .ah-thin { fill: var(--muted); } .ah-risk { fill: var(--risk); }
+.key { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px; color: var(--muted); }
+.key span { display: inline-flex; align-items: center; gap: 8px; }
+.key i { width: 26px; height: 0; display: inline-block; }
+.k-sig { border-top: 2px dashed var(--ours); }
+.k-pay { border-top: 2px solid var(--fg); }
+.k-risk { border-top: 2px solid var(--risk); }
+
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.comp { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.comp.ours { border-top: 3px solid var(--ours); }
+.comp.dev { border-top: 3px solid var(--devin); }
+.comp h3 { margin: 0; font-size: 17px; }
+.comp .where { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.comp ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.comp li { font-size: 14.5px; padding-left: 14px; position: relative; }
+.comp li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.comp li b { font-weight: 600; }
+
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.tbl { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.tbl h3 { margin: 0; padding: 12px 16px; font-size: 13px; font-family: var(--font-mono); font-weight: 500; letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--line); }
+.tbl.open h3 { color: var(--muted); }
+.tbl.enc h3 { color: var(--ours); background: var(--ours-soft); }
+.tbl dl { margin: 0; display: grid; grid-template-columns: minmax(0, 11em) minmax(0, 1fr); }
+.tbl dt, .tbl dd { margin: 0; padding: 9px 16px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.tbl dt { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+.tbl dl > :nth-last-child(-n+2) { border-bottom: 0; }
+
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.chain li { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 14px; }
+.chain li.arrow { border: 0; background: none; padding: 0; color: var(--muted); }
+.chain.dev li:not(.arrow) { border-color: var(--devin); }
+.chain li.hl { border-color: var(--devin); background: var(--devin-soft); }
+.trust { margin: 16px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.trust li { font-size: 14.5px; color: var(--muted); min-width: 0; }
+.trust b { display: block; color: var(--fg); font-weight: 600; margin-bottom: 2px; }
+
+.flow { display: flex; flex-direction: column; gap: 20px; }
+.flow h3 { margin: 0 0 10px; font-size: 15px; }
+.flow .tag { font-family: var(--font-mono); font-size: 11px; color: var(--devin); letter-spacing: .05em; text-transform: uppercase; margin-left: 8px; }
+.flow .tag.rt { color: var(--muted); }
+.callout { border-left: 3px solid var(--devin); padding: 4px 0 4px 16px; font-size: 15px; max-width: 72ch; }
+.foot { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 760px) {
+  .points, .cols, .two, .trust { grid-template-columns: 1fr; }
+  body { padding-block: 28px 48px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="read">
+    <p class="eyebrow">Scam Weather · версия после ревью банковской инфраструктуры</p>
+    <h1>Архитектура Scam Weather</h1>
+    <p class="lead">Исполненный SWIFT-перевод остановить нельзя, поэтому сигнал описывает счёт, а не платёж. Hub рассылает сигналы заранее и не стоит на пути перевода: банк сверяется с локальной копией и не задерживает <code>pacs.008</code>.</p>
+  </header>
+
+  <section>
+    <h2>Где сеть успевает вмешаться</h2>
+    <p class="sub">Трансграничный перевод на счёт дропа X. Сплошные стрелки — сам платёж, пунктир — сигналы Scam Weather.</p>
+    <figure>
+      <div class="scroll">
+        <svg class="lane" viewBox="0 0 1200 500" role="img" aria-labelledby="ln-t ln-d">
+          <title id="ln-t">Путь платежа и сигналов по времени</title>
+          <desc id="ln-d">Сигнал о счёте X приходит в кэш узлов заранее. Банк A проверяет платёж до pacs.008, банк B блокирует исходящие при зачислении, а после жалобы клиента новый сигнал запускает заморозку и возврат.</desc>
+          <defs>
+            <marker id="a-sig" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-sig"/></marker>
+            <marker id="a-pay" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-pay"/></marker>
+            <marker id="a-thin" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-thin"/></marker>
+            <marker id="a-risk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-risk"/></marker>
+          </defs>
+
+          <rect x="0" y="40" width="1200" height="90" class="band"/>
+          <rect x="0" y="220" width="1200" height="90" class="band"/>
+          <rect x="0" y="400" width="1200" height="90" class="band"/>
+
+          <line x1="400" y1="36" x2="400" y2="490" class="sep"/>
+          <line x1="870" y1="36" x2="870" y2="490" class="sep"/>
+          <text x="290" y="26" text-anchor="middle" class="phase">ЗАРАНЕЕ</text>
+          <text x="635" y="26" text-anchor="middle" class="phase">В МОМЕНТ ПЛАТЕЖА</text>
+          <text x="1035" y="26" text-anchor="middle" class="phase">ПОСЛЕ ИСПОЛНЕНИЯ</text>
+
+          <text x="20" y="81" class="l-name">Scam Weather Hub</text>
+          <text x="20" y="99" class="l-sub">слепой ретранслятор</text>
+          <text x="20" y="171" class="l-name">Банк A</text>
+          <text x="20" y="189" class="l-sub">банк отправителя</text>
+          <text x="20" y="261" class="l-name">Платёжная сеть</text>
+          <text x="20" y="279" class="l-sub">SWIFT, pacs.008</text>
+          <text x="20" y="351" class="l-name">Банк B</text>
+          <text x="20" y="369" class="l-sub">банк получателя</text>
+          <text x="20" y="441" class="l-name">Дроп</text>
+          <text x="20" y="459" class="l-sub">вывод денег</text>
+
+          <!-- ahead of time -->
+          <rect x="200" y="63" width="170" height="44" rx="6" class="bx-ours"/>
+          <text x="214" y="82" class="t1">Сигнал о счёте X</text>
+          <text x="214" y="98" class="t2">от прошлой жертвы</text>
+
+          <rect x="200" y="153" width="170" height="44" rx="6" class="bx-ours"/>
+          <text x="214" y="172" class="t1">Кэш сигналов узла A</text>
+          <text x="214" y="188" class="t2">в контуре банка</text>
+
+          <rect x="200" y="333" width="170" height="44" rx="6" class="bx-ours"/>
+          <text x="214" y="352" class="t1">Кэш сигналов узла B</text>
+          <text x="214" y="368" class="t2">в контуре банка</text>
+
+          <path d="M285,107 V151" class="w-sig" marker-end="url(#a-sig)"/>
+          <path d="M200,92 H188 V355 H198" class="w-sig" marker-end="url(#a-sig)"/>
+          <text x="200" y="258" class="note">сигналы рассылаются</text>
+          <text x="200" y="274" class="note">в оба узла заранее</text>
+
+          <!-- at payment time -->
+          <rect x="420" y="153" width="200" height="44" rx="6" class="bx-bank"/>
+          <circle cx="438" cy="175" r="10" class="dot"/>
+          <text x="438" y="179" text-anchor="middle" class="dot-t">1</text>
+          <text x="456" y="172" class="t1">Проверка до pacs.008</text>
+          <text x="456" y="188" class="t2">сверка с кэшем, без сети</text>
+          <path d="M370,175 H418" class="w-thin" marker-end="url(#a-thin)"/>
+
+          <rect x="560" y="243" width="200" height="44" rx="6" class="bx-net"/>
+          <text x="574" y="262" class="t1">pacs.008 через SWIFT</text>
+          <text x="574" y="278" class="t2">Hub в этом пути не участвует</text>
+          <path d="M600,197 V241" class="w-pay" marker-end="url(#a-pay)"/>
+          <path d="M720,287 V331" class="w-pay" marker-end="url(#a-pay)"/>
+
+          <rect x="640" y="333" width="220" height="44" rx="6" class="bx-bank"/>
+          <circle cx="658" cy="355" r="10" class="dot"/>
+          <text x="658" y="359" text-anchor="middle" class="dot-t">2</text>
+          <text x="676" y="352" class="t1">Зачисление на счёт X</text>
+          <text x="676" y="368" class="t2">в сигналах → hold исходящих</text>
+          <path d="M370,355 H638" class="w-thin" marker-end="url(#a-thin)"/>
+          <text x="505" y="346" text-anchor="middle" class="lbl">локальная сверка</text>
+
+          <rect x="640" y="423" width="220" height="44" rx="6" class="bx-risk"/>
+          <text x="654" y="442" class="t1">Дроп пытается вывести</text>
+          <text x="654" y="458" class="t2">дальше по цепочке, наличные</text>
+          <path d="M740,377 V421" class="w-pay" marker-end="url(#a-pay)"/>
+
+          <!-- after execution -->
+          <rect x="880" y="153" width="180" height="44" rx="6" class="bx-bank"/>
+          <text x="894" y="172" class="t1">Клиент сообщил</text>
+          <text x="894" y="188" class="t2">банк A подтвердил кейс</text>
+
+          <rect x="880" y="63" width="180" height="44" rx="6" class="bx-ours"/>
+          <text x="894" y="82" class="t1">Новый сигнал</text>
+          <text x="894" y="98" class="t2">подпись и шифрование</text>
+          <path d="M970,153 V109" class="w-sig" marker-end="url(#a-sig)"/>
+
+          <text x="884" y="258" class="note">окно до обналички:</text>
+          <text x="884" y="274" class="note">успеть до вывода денег</text>
+
+          <rect x="900" y="333" width="250" height="44" rx="6" class="bx-bank"/>
+          <circle cx="918" cy="355" r="10" class="dot"/>
+          <text x="918" y="359" text-anchor="middle" class="dot-t">3</text>
+          <text x="936" y="352" class="t1">Заморозка и возврат</text>
+          <text x="936" y="368" class="t2">hold исходящих, camt.056 recall</text>
+          <path d="M1060,85 H1130 V331" class="w-sig" marker-end="url(#a-sig)"/>
+
+          <path d="M1000,377 V445 H864" class="w-risk" marker-end="url(#a-risk)"/>
+          <text x="1008" y="424" class="lbl-risk">вывод заблокирован</text>
+        </svg>
+      </div>
+      <div class="key">
+        <span><i class="k-pay"></i>платёж</span>
+        <span><i class="k-sig"></i>сигнал Scam Weather</span>
+        <span><i class="k-risk"></i>блокировка вывода</span>
+      </div>
+      <div class="points">
+        <div class="pt"><span class="num">1</span><span><b>До отправки, банк A</b>Счёт уже в сигналах. Антифрод банка A ставит платёж на проверку до формирования pacs.008. Спасаем следующую жертву.</span></div>
+        <div class="pt"><span class="num">2</span><span><b>При поступлении, банк B</b>Банк B зачисляет деньги на помеченный счёт, но блокирует исходящие с него.</span></div>
+        <div class="pt"><span class="num">3</span><span><b>После исполнения, банк B</b>Новый сигнал от банка A: заморозка исходящих до обналички и запрос на возврат через camt.056 или gpi Stop and Recall.</span></div>
+      </div>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Компоненты</h2>
+    <p class="sub">Решения о платеже принимает код банка. Hub только доставляет, Devin только пишет код до деплоя.</p>
+    <div class="cols">
+      <div class="comp ours">
+        <span class="where">В контуре каждого банка</span>
+        <h3>Коннектор (узел)</h3>
+        <ul>
+          <li><b>Отправка:</b> HMAC счёта, подпись Ed25519, шифрование под группу</li>
+          <li><b>Приём:</b> сам забирает сигналы из Hub, проверяет подпись</li>
+          <li><b>Локальный кэш</b> действующих сигналов</li>
+          <li><b>Сверка</b> платежа с кэшем, хук в антифрод банка</li>
+          <li><b>Политика</b> банка: что делать с каким сигналом</li>
+          <li>Ключи в HSM банка</li>
+        </ul>
+      </div>
+      <div class="comp ours">
+        <span class="where">Наш SaaS</span>
+        <h3>Hub</h3>
+        <ul>
+          <li>Банки подключаются сами по mTLS, входящие порты не нужны</li>
+          <li>Очередь шифротекстов, расшифровать не может</li>
+          <li>Журнал с цепочкой хэшей и подписанные ACK</li>
+          <li>Реестр участников и их публичных ключей</li>
+          <li>Не стоит на пути платежа: если он недоступен, банки работают с последним кэшем</li>
+        </ul>
+      </div>
+      <div class="comp dev">
+        <span class="where">Design-time</span>
+        <h3>Devin</h3>
+        <ul>
+          <li>Запускается через API, когда банк выпускает новую версию схемы</li>
+          <li>Пишет и обновляет коннектор под формат банка</li>
+          <li>Пишет тесты по общему контракту и карточкам кейсов</li>
+          <li>Возвращает инженеру банка черновой PR с результатами тестов</li>
+          <li>Не видит живые данные и не участвует в решении о платеже</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Сигнал</h2>
+    <p class="sub">Конверт нужен Hub для доставки. Всё, что касается клиента, зашифровано под банки-получатели.</p>
+    <div class="two">
+      <div class="tbl open">
+        <h3>Конверт · открыт</h3>
+        <dl>
+          <dt>issuer</dt><dd>банк-отправитель</dd>
+          <dt>audience</dt><dd>группа банков-получателей</dd>
+          <dt>kind</dt><dd>тип сигнала, например bec_beneficiary</dd>
+          <dt>revision</dt><dd>номер версии</dd>
+          <dt>expires_at</dt><dd>срок жизни</dd>
+        </dl>
+      </div>
+      <div class="tbl enc">
+        <h3>Полезная нагрузка · зашифрована</h3>
+        <dl>
+          <dt>indicator</dt><dd>HMAC нормализованного IBAN</dd>
+          <dt>reason_code</dt><dd>причина, например confirmed_bec_case</dd>
+          <dt>evidence_level</dt><dd>насколько кейс доказан</dd>
+          <dt>amount_band</dt><dd>диапазон суммы, не точная сумма</dd>
+          <dt>first_seen</dt><dd>когда обнаружен</dd>
+        </dl>
+      </div>
+    </div>
+    <div style="margin-top:20px">
+      <ul class="chain" aria-label="Жизненный цикл сигнала">
+        <li>v1 опубликован</li><li class="arrow">→</li>
+        <li>доставлен</li><li class="arrow">→</li>
+        <li>ACK applied</li><li class="arrow">→</li>
+        <li>v2 исправление или отзыв</li><li class="arrow">→</li>
+        <li>истёк срок</li>
+      </ul>
+    </div>
+    <ul class="trust">
+      <li><b>Почему доверять</b>Сигнал подписан ключом банка-участника из реестра консорциума.</li>
+      <li><b>Сигнал не команда</b>Действие выбирает политика банка-получателя по типу и уровню доказанности.</li>
+      <li><b>Ошибочный сигнал</b>Отправитель отзывает его, узел применяет только максимальную версию.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Devin в продукте</h2>
+    <div class="flow">
+      <div>
+        <h3>Подключение банка Б <span class="tag">Devin</span></h3>
+        <ul class="chain dev">
+          <li>Общий контракт сигнала + тестовая схема банка Б</li><li class="arrow">→</li>
+          <li class="hl">Devin пишет коннектор и тесты</li><li class="arrow">→</li>
+          <li>Черновой PR</li><li class="arrow">→</li>
+          <li>Инженер банка проверяет и выпускает коннектор</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Проверка платежа <span class="tag rt">без Devin</span></h3>
+        <ul class="chain">
+          <li>Банк А подтверждает инцидент</li><li class="arrow">→</li>
+          <li>Коннектор А отправляет минимальный сигнал</li><li class="arrow">→</li>
+          <li>Hub доставляет его банку Б</li><li class="arrow">→</li>
+          <li>Коннектор Б сопоставляет сигнал с локальным платежом</li><li class="arrow">→</li>
+          <li>Антифрод банка Б решает, нужна ли проверка</li>
+        </ul>
+      </div>
+      <p class="callout">Когда банк выпускает новую версию схемы, Scam Weather запускает сессию Devin через API и возвращает инженеру черновой PR с обновлённым коннектором и результатами тестов. В демо этот шаг выполняется в Devin вручную: нужны тестовый репозиторий, согласованная схема и синтетические примеры.</p>
+    </div>
+  </section>
+
+  <p class="foot read">Подробности в репозитории: <code>docs/ARCHITECTURE.md</code>, кейсы в <code>bec-cases/</code>, история изменений в <code>CHANGELOG.md</code>.</p>
+</div>
