@@ -1,0 +1,510 @@
+<title>Архитектура Scam Weather</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: спецификация протокола — одна колонка для чтения, широкие схемы и таблицы в своих контейнерах */
+:root {
+  --bg: #F2F4F6;
+  --surface: #FFFFFF;
+  --ink: #142131;
+  --muted: #586676;
+  --line: #D3DAE2;
+  --accent: #1E5C9E;
+  --accent-soft: #E3ECF6;
+  --seal: #B0531A;
+  --seal-soft: #F7E8DD;
+  --ok: #2B7A4B;
+  --ok-soft: #E1F1E7;
+  --code-bg: #E9EDF1;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E141B; --surface: #151D27; --ink: #E3E9F0; --muted: #94A2B2; --line: #2A3645;
+    --accent: #72A9E6; --accent-soft: #1A2A3D; --seal: #E38C55; --seal-soft: #33231A;
+    --ok: #63C08A; --ok-soft: #17291F; --code-bg: #1A2431; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E141B; --surface: #151D27; --ink: #E3E9F0; --muted: #94A2B2; --line: #2A3645;
+  --accent: #72A9E6; --accent-soft: #1A2A3D; --seal: #E38C55; --seal-soft: #33231A;
+  --ok: #63C08A; --ok-soft: #17291F; --code-bg: #1A2431; color-scheme: dark;
+}
+
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+}
+.wrap {
+  max-width: 980px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+  display: flex; flex-direction: column; gap: 56px;
+}
+h1, h2, h3 { text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: clamp(22px, 3vw, 28px); font-weight: 600; letter-spacing: -0.01em; }
+h3 { font-size: 17px; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+section { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent);
+}
+.muted { color: var(--muted); }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Hero */
+.hero { gap: 20px; }
+.thesis { font-size: clamp(18px, 2.3vw, 21px); color: var(--muted); max-width: 60ch; }
+.principle {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;
+}
+.principle div {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.principle .k { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.principle .v { font-weight: 600; }
+
+/* Diagram */
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.d-box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.d-bank { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+.d-hub { fill: var(--code-bg); stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.d-zone { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.6; }
+.d-title { fill: var(--ink); font: 600 16px var(--font-body); }
+.d-item { fill: var(--ink); font: 400 13px var(--font-body); }
+.d-note { fill: var(--muted); font: 400 12px var(--font-mono); }
+.d-seal { fill: var(--seal); font: 500 12px var(--font-mono); }
+.d-arrow { stroke: var(--accent); stroke-width: 2; fill: none; }
+.d-head { fill: var(--accent); }
+.d-lbl { fill: var(--accent); font: 500 12px var(--font-mono); }
+
+/* Two-column leave / stay */
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.panel ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.tag { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; width: fit-content; }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.tag.no { background: var(--seal-soft); color: var(--seal); }
+.tag.acc { background: var(--accent-soft); color: var(--accent); }
+
+/* Envelope viewer */
+.viewer { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line); }
+.tabs button {
+  appearance: none; border: 0; background: transparent; color: var(--muted);
+  font: 500 14px var(--font-body); padding: 12px 16px; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs button:hover { color: var(--ink); }
+.view { padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+pre {
+  margin: 0; background: var(--code-bg); border-radius: 6px; padding: 14px 16px;
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.55; overflow-x: auto; color: var(--ink);
+}
+pre .c { color: var(--muted); }
+pre .s { color: var(--seal); }
+pre .k { color: var(--accent); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14.5px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; font-size: 13px; color: var(--muted); background: var(--code-bg); }
+tr:last-child td { border-bottom: 0; }
+td.pick { background: var(--accent-soft); }
+th.pick { color: var(--accent); }
+
+/* Mapper pipeline */
+.pipe { display: flex; flex-direction: column; gap: 0; }
+.stage { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start; }
+.stage .num {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px solid var(--accent); color: var(--accent); font: 600 14px var(--font-mono);
+  background: var(--surface);
+}
+.stage .body { padding-bottom: 18px; border-left: 1.5px dashed var(--line); margin-left: -30px; padding-left: 30px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.stage:last-child .body { border-left-color: transparent; }
+.who { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+
+/* Design-time vs run-time */
+.time { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.time .panel h3 { display: flex; align-items: center; gap: 10px; }
+
+/* Numbers */
+.nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.num-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.num-card .n { font: 600 26px var(--font-body); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.num-card .d { font-size: 14px; color: var(--muted); }
+
+/* Timeline */
+.timeline { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.tl-row { display: grid; grid-template-columns: 64px 1fr; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.tl-row:last-child { border-bottom: 0; }
+.tl-row .t { font-family: var(--font-mono); font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; padding-top: 2px; }
+
+.sources { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.sources ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tabs button { transition: color .15s, border-color .15s; }
+}
+</style>
+
+<main class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">CIS Sprint × Devin · трек «Protect the big guy» · черновик v0.2</span>
+    <h1>Банки делятся сигналами о мошенничестве. Оркестратор ничего не видит и ничего не может подделать.</h1>
+    <p class="thesis">Сеть, в которой банк жертвы BEC за секунды предупреждает банк получателя, пока деньги ещё на счёте дропа. Сырые данные не покидают банки, а каждый новый банк подключает Devin.</p>
+    <div class="principle">
+      <div><span class="k">Принцип 1</span><span class="v">Чувствительное — только внутри банка: хэш, подпись, шифрование делает узел банка</span></div>
+      <div><span class="k">Принцип 2</span><span class="v">Оркестратор пересылает шифротекст и не может прочитать или изменить сигнал</span></div>
+      <div><span class="k">Принцип 3</span><span class="v">Devin пишет код решений заранее. В момент платежа решает детерминированный код банка</span></div>
+    </div>
+  </header>
+
+  <section>
+    <span class="eyebrow">Схема</span>
+    <h2>У каждого банка свой узел, оркестратор только пересылает</h2>
+    <p class="muted">Банки сами подключаются наружу по mTLS, входящие порты не нужны. Пунктир вокруг узла — контур банка.</p>
+    <div class="diagram scroll">
+      <svg viewBox="0 0 960 430" role="img" aria-label="Банк A отправляет подписанный и зашифрованный сигнал в оркестратор, банки B и C забирают его и применяют свою политику">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="d-head"/>
+          </marker>
+        </defs>
+
+        <!-- Bank A -->
+        <rect x="12" y="28" width="282" height="374" rx="14" class="d-zone"/>
+        <text x="28" y="22" class="d-note">контур банка A</text>
+        <rect x="28" y="48" width="250" height="300" rx="10" class="d-bank"/>
+        <text x="44" y="76" class="d-title">Банк A · узел</text>
+        <text x="44" y="104" class="d-item">• маппер наружу (формат банка → общий)</text>
+        <text x="44" y="128" class="d-item">• проверка схемы, лишние поля не уйдут</text>
+        <text x="44" y="152" class="d-item">• IBAN → HMAC(ключ группы)</text>
+        <text x="44" y="176" class="d-item">• подпись Ed25519</text>
+        <text x="44" y="200" class="d-item">• шифрование для B и C</text>
+        <text x="44" y="224" class="d-item">• ключи в HSM / vault банка</text>
+        <text x="44" y="262" class="d-note">вход: подтверждённый</text>
+        <text x="44" y="280" class="d-note">BEC-кейс из антифрода</text>
+        <text x="44" y="326" class="d-seal">сырые данные остаются здесь</text>
+
+        <!-- Orchestrator -->
+        <rect x="364" y="100" width="232" height="230" rx="10" class="d-hub"/>
+        <text x="380" y="128" class="d-title">Оркестратор</text>
+        <text x="380" y="156" class="d-item">• реестр участников и ключей</text>
+        <text x="380" y="180" class="d-item">• политики групп</text>
+        <text x="380" y="204" class="d-item">• пересылка шифротекста</text>
+        <text x="380" y="228" class="d-item">• журнал с цепочкой хэшей</text>
+        <text x="380" y="266" class="d-note">видит только конверт:</text>
+        <text x="380" y="284" class="d-note">кто, кому, тип, срок</text>
+        <text x="380" y="310" class="d-seal">содержимое прочитать нельзя</text>
+
+        <!-- Bank B -->
+        <rect x="666" y="12" width="282" height="196" rx="14" class="d-zone"/>
+        <rect x="682" y="26" width="250" height="168" rx="10" class="d-bank"/>
+        <text x="698" y="54" class="d-title">Банк B · узел</text>
+        <text x="698" y="80" class="d-item">• проверка подписи банка A</text>
+        <text x="698" y="104" class="d-item">• расшифровка своим ключом</text>
+        <text x="698" y="128" class="d-item">• маппер внутрь</text>
+        <text x="698" y="152" class="d-item">• политика: счёт клиента →</text>
+        <text x="710" y="174" class="d-seal">freeze_outgoing</text>
+
+        <!-- Bank C -->
+        <rect x="666" y="222" width="282" height="196" rx="14" class="d-zone"/>
+        <rect x="682" y="236" width="250" height="168" rx="10" class="d-bank"/>
+        <text x="698" y="264" class="d-title">Банк C · узел</text>
+        <text x="698" y="290" class="d-item">• ISO 20022 → общая схема</text>
+        <text x="698" y="314" class="d-item">• коннектор написал Devin</text>
+        <text x="698" y="338" class="d-item">• политика: платёж клиента →</text>
+        <text x="710" y="360" class="d-seal">review</text>
+        <text x="698" y="388" class="d-note">подписанный ACK обратно</text>
+
+        <!-- arrows -->
+        <path d="M278 214 L 360 214" class="d-arrow" marker-end="url(#ah)"/>
+        <text x="282" y="204" class="d-lbl">mTLS · push</text>
+        <path d="M680 112 L 600 170" class="d-arrow" marker-end="url(#ah)"/>
+        <text x="604" y="128" class="d-lbl">pull</text>
+        <path d="M680 318 L 600 262" class="d-arrow" marker-end="url(#ah)"/>
+        <text x="610" y="310" class="d-lbl">pull</text>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Минимизация данных</span>
+    <h2>Что выходит из банка, а что никогда</h2>
+    <div class="split">
+      <div class="panel">
+        <span class="tag ok">уходит, зашифровано</span>
+        <ul>
+          <li><code>HMAC(ключ группы, IBAN)</code> — хэш счёта</li>
+          <li>тип сигнала: <code>bec_beneficiary</code>, <code>suspected_mule</code></li>
+          <li>уровень доказанности и код причины</li>
+          <li>диапазон суммы, например «100–500 тыс.»</li>
+          <li>срок годности и версия</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <span class="tag no">не уходит никогда</span>
+        <ul>
+          <li>IBAN, имена, ИНН, данные KYC</li>
+          <li>балансы, выписки, история операций</li>
+          <li>точные суммы</li>
+          <li>свободный текст и вложения</li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted">Схема проверяется на узле отправителя до шифрования: поле, которого нет в схеме, узел не отправит. После шифрования оркестратор содержимое проверить не может, поэтому проверка обязана быть на узлах.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">Один сигнал глазами двух сторон</span>
+    <h2>Что видит оркестратор и что видит банк B</h2>
+    <div class="viewer">
+      <div class="tabs" role="tablist" aria-label="Чей взгляд показать">
+        <button role="tab" id="tab-hub" aria-selected="true" aria-controls="view-hub">Оркестратор</button>
+        <button role="tab" id="tab-bank" aria-selected="false" aria-controls="view-bank">Банк B после расшифровки</button>
+      </div>
+      <div class="view" id="view-hub" role="tabpanel" aria-labelledby="tab-hub">
+<pre><span class="c">// хранится в базе оркестратора</span>
+{
+  <span class="k">"envelope"</span>: {
+    "signal_id": "sig_0192",
+    "revision": 1,
+    "issuer": "bank-a",
+    "audience": "group-uae-bec",
+    "kind": "bec_beneficiary",
+    "expires_at": "2026-11-22T08:00Z",
+    "prev_hash": "9f3c…e1"
+  },
+  <span class="k">"payload"</span>: <span class="s">"eyJhbGciOiJFQ0RILUVTIiwi…"</span>  <span class="c">// JWE для B и C</span>
+  <span class="k">"signature"</span>: "ed25519:4b1a…c7"  <span class="c">// ключ банка A</span>
+}</pre>
+        <p class="muted">Ни IBAN, ни хэша счёта, ни суммы. Изменить конверт нельзя: подпись перестанет сходиться.</p>
+      </div>
+      <div class="view" id="view-bank" role="tabpanel" aria-labelledby="tab-bank" hidden>
+<pre><span class="c">// подпись банка A проверена, payload расшифрован ключом банка B</span>
+{
+  "indicator": { "type": "account_hmac", "value": "hmac:7d2e…a0" },
+  "evidence_level": "issuer_analyst_verified",
+  "reason_code": "confirmed_bec_case",
+  "amount_band": "100k-500k",
+  "first_seen": "2026-11-21T07:52Z"
+}
+<span class="c">// локально: hmac совпал со счётом клиента банка B</span>
+<span class="k">→ policy</span>: account_role = own_customer → <span class="s">freeze_outgoing</span>, open_case</pre>
+        <p class="muted">Банк B сопоставляет хэш со своими счетами, не узнавая IBAN из сигнала. Решение принимает его собственная политика.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Выбор топологии</span>
+    <h2>Три варианта оркестратора</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th></th><th class="pick">A. Слепой посредник</th><th>B. Прямой обмен банк–банк</th><th>C. Запрос в момент платежа</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Как работает</td><td class="pick">Принимает шифротекст, получатели забирают сами</td><td>Оркестратор — только реестр и ключи, данные идут между банками</td><td>Банк B при каждом платеже спрашивает, есть ли хэш в сигналах</td></tr>
+          <tr><td>Что видит центр</td><td class="pick">Конверт: кто, кому, тип, срок</td><td>Только реестр</td><td>Сами запросы</td></tr>
+          <tr><td>Плюсы</td><td class="pick">Только исходящие соединения, сообщения ждут офлайн-банк</td><td>В центре ничего не хранится</td><td>Минимум передаваемых данных</td></tr>
+          <tr><td>Минусы</td><td class="pick">Видны метаданные: кто с кем общается</td><td>Входящий порт у каждого банка, N² соединений</td><td>Попадает в путь платежа: задержка, зависимость от доступности</td></tr>
+          <tr><td>Хакатон</td><td class="pick"><span class="tag acc">выбираем</span></td><td>долго</td><td>нет</td></tr>
+          <tr><td>Пилот</td><td class="pick">основной вариант</td><td>если банки потребуют</td><td>дополнение для крупных сумм</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Для службы безопасности банка</span>
+    <h2>Модель угроз</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Угроза</th><th>Защита</th></tr></thead>
+        <tbody>
+          <tr><td>Взломан оркестратор</td><td>Подпись отправителя: подделать нельзя. Шифрование под получателя (HPKE / JWE): прочитать нельзя. В базе только шифротекст</td></tr>
+          <tr><td>Перехват трафика</td><td>mTLS с сертификатами организаций от CA консорциума</td></tr>
+          <tr><td>Повтор старого события</td><td>Версия, nonce и срок годности. Узел хранит максимальную применённую версию, старая не воскрешает отозванный сигнал</td></tr>
+          <tr><td>Участник перебирает IBAN по хэшам</td><td>Узкие группы, ротация ключа группы, лимит сравнений, журнал сравнений. В пилоте — PSI (private set intersection)</td></tr>
+          <tr><td>Спор «мы этого не получали»</td><td>Подписанный ACK и журнал, где каждая запись содержит хэш предыдущей</td></tr>
+          <tr><td>Ошибочный сигнал блокирует честных клиентов</td><td>Срок годности, отзыв, режим «только наблюдать», решение всегда за банком</td></tr>
+          <tr><td>Утечка ключей</td><td>Ключи в HSM или vault банка, ротация, отключение участника одним действием</td></tr>
+          <tr><td>Данные уехали из страны</td><td>Узел и шифрование внутри банка, оркестратор можно разместить в ОАЭ</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Маппер</span>
+    <h2>Как событие сети превращается в решение банка</h2>
+    <p>Маппер — это три слоя внутри узла банка. Тот же путь работает в обратную сторону: подтверждённый внутренний кейс превращается в событие для сети.</p>
+    <div class="pipe">
+      <div class="stage">
+        <span class="num">1</span>
+        <div class="body">
+          <h3>Адаптер формата</h3>
+          <p>Общая схема ↔ формат банка: JSON, ISO 20022 <code>pacs.008</code>, CSV. Нормализация IBAN — если банки нормализуют по-разному, хэши не совпадут.</p>
+          <span class="who">генерирует Devin</span>
+        </div>
+      </div>
+      <div class="stage">
+        <span class="num">2</span>
+        <div class="body">
+          <h3>Политика банка</h3>
+          <p>Тип сигнала × уровень доказанности × роль счёта → действие. Декларативный файл, которым владеет антифрод банка.</p>
+          <span class="who">черновик предлагает Devin, утверждает Fraud Risk банка</span>
+        </div>
+      </div>
+      <div class="stage">
+        <span class="num">3</span>
+        <div class="body">
+          <h3>Интеграция</h3>
+          <p>Запись в движок правил, Kafka или систему кейсов банка.</p>
+          <span class="who">генерирует Devin</span>
+        </div>
+      </div>
+    </div>
+<pre><span class="c"># policy.yaml банка B — владелец Fraud Risk, Devin только предлагает изменения</span>
+<span class="k">on_signal</span>: bec_beneficiary
+<span class="k">rules</span>:
+  - when: { account_role: own_customer, evidence: issuer_analyst_verified }
+    action: <span class="s">freeze_outgoing</span>     <span class="c"># счёт нашего клиента похож на дропа</span>
+    open_case: true
+    max_duration_h: 24
+  - when: { account_role: payee_of_own_customer }
+    action: <span class="s">review</span>              <span class="c"># наш клиент собирается платить на этот счёт</span>
+  - when: { evidence: suspected }
+    action: score_plus_30       <span class="c"># слабый сигнал только повышает риск</span>
+<span class="k">default</span>: no_effect
+<span class="k">expired_or_retracted</span>: no_effect</pre>
+  </section>
+
+  <section>
+    <span class="eyebrow">Роль Devin</span>
+    <h2>Devin пишет код решений, но сам решения не принимает</h2>
+    <div class="time">
+      <div class="panel">
+        <h3><span class="tag acc">design-time</span> Devin</h3>
+        <p>Генерирует адаптеры, интеграцию, черновик политики и тесты. Открывает PR, инженер банка одобряет. Работает минуты, и это нормально.</p>
+      </div>
+      <div class="panel">
+        <h3><span class="tag ok">run-time</span> код банка</h3>
+        <p>В момент платежа работает детерминированный код узла: миллисекунды, проверяемо, без внешнего агента в контуре банка.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Когда</th><th>Что получает Devin</th><th>Что выдаёт</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Подключение банка</strong></td><td>Спецификацию API или примеры данных банка, SDK узла, шаблон политики, проверки на соответствие (карточки BEC-кейсов и проверки безопасности)</td><td>Адаптер, интеграцию, черновик политики, тесты, PR в репозиторий банка. Прогон в песочнице Daytona</td></tr>
+          <tr><td>Банк поменял формат</td><td>Упавшие проверки на соответствие</td><td>PR с исправлением адаптера</td></tr>
+          <tr><td>Новый тип сигнала в сети</td><td>Обновлённую общую схему</td><td>PR во все узлы банков с черновиком политики для каждого</td></tr>
+          <tr><td>Пропущенный кейс</td><td>Новую карточку кейса</td><td>Предложение по политике и тест</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">Главный барьер таких сетей — интеграция каждого банка. Devin превращает подключение банка из проекта на месяцы в PR, который проходит общий набор проверок.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">Почему это стоит делать</span>
+    <h2>Цифры для питча</h2>
+    <div class="nums">
+      <div class="num-card"><span class="n">$3,05 млрд</span><span class="d">потери от BEC в США за 2025 год, ~$123 тыс. на жалобу (FBI IC3)</span></div>
+      <div class="num-card"><span class="n">58%</span><span class="d">заморозила команда FBI по возврату: $679 млн из $1,16 млрд — только при быстрой реакции</span></div>
+      <div class="num-card"><span class="n">50%</span><span class="d">компенсации жертвам в Великобритании платит банк получателя</span></div>
+      <div class="num-card"><span class="n">+40%</span><span class="d">выявленного мошенничества при совместных данных банков (пилот Pay.UK)</span></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Хакатон</span>
+    <h2>Что собираем и как показываем</h2>
+    <div class="split">
+      <div class="panel">
+        <h3>Состав</h3>
+        <ul>
+          <li>3 симулятора банков с разными форматами: A — JSON, B — свой JSON, C — ISO 20022 XML</li>
+          <li>SDK узла на TypeScript: подпись, шифрование, HMAC, проверка схемы, ACK</li>
+          <li>Оркестратор: пересылка шифротекста, реестр, журнал. SQLite</li>
+          <li>Задача Devin: подключить новый банк по примерам и проверкам на соответствие</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Что останется на пилот</h3>
+        <ul>
+          <li>PSI вместо HMAC</li>
+          <li>Прямой обмен банк–банк, если потребуется</li>
+          <li>HSM, CA консорциума, режим «только наблюдать»</li>
+          <li>Юридическое согласование обмена (ОАЭ, ст. 147 и 149)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="timeline" aria-label="Сценарий демо на 5 минут">
+      <div class="tl-row"><span class="t">0:00</span><span>В банке A подтверждён BEC-кейс: $123 тыс. ушли на счёт X</span></div>
+      <div class="tl-row"><span class="t">0:40</span><span>Узел банка A подписывает, шифрует и отправляет сигнал</span></div>
+      <div class="tl-row"><span class="t">1:20</span><span>Банк B замораживает исходящие с этого счёта, банк C отправляет платёж своего клиента на проверку</span></div>
+      <div class="tl-row"><span class="t">2:10</span><span>Открываем базу оркестратора: только шифротекст. Меняем байт сигнала — узел банка отклоняет подпись</span></div>
+      <div class="tl-row"><span class="t">3:00</span><span>PR от Devin: банк D подключён, проверки на соответствие зелёные</span></div>
+      <div class="tl-row"><span class="t">3:50</span><span>Банк D сразу получает и применяет сигнал</span></div>
+      <div class="tl-row"><span class="t">4:30</span><span>Банк A отзывает сигнал, сеть снимает его влияние. Итог</span></div>
+    </div>
+  </section>
+
+  <section class="sources">
+    <span class="eyebrow">Источники</span>
+    <ol>
+      <li><a href="https://securityweek.com/fbi-cybercrime-losses-neared-21-billion-in-2025" target="_blank" rel="noopener">SecurityWeek — FBI IC3 2025, потери от BEC</a></li>
+      <li><a href="https://slowmist.medium.com/analysis-fbi-releases-the-2025-internet-crime-report-37c337a86502" target="_blank" rel="noopener">SlowMist — разбор IC3 2025, Recovery Asset Team</a></li>
+      <li><a href="https://www.biocatch.com/mule-account-detection" target="_blank" rel="noopener">BioCatch — доля компенсаций банка получателя в Великобритании</a></li>
+      <li><a href="https://newseventsinsights.wearepay.uk/media-centre/press-releases/payuk-s-fraud-detection-pilot-exceeds-expectations-detecting-over-112m-worth-of-fraud/" target="_blank" rel="noopener">Pay.UK — результаты пилота Fraud Detection Overlay</a></li>
+      <li><a href="https://uaelegislation.gov.ae/en/legislations/3284/download" target="_blank" rel="noopener">Федеральный декрет-закон ОАЭ № 6/2025</a></li>
+    </ol>
+  </section>
+
+  <footer>Рабочий черновик для команды CIS Sprint. Название Scam Weather рабочее. Веса, сроки и пороги — параметры демо, их согласуют банки на пилоте.</footer>
+</main>
+
+<script>
+(function () {
+  var tabs = document.querySelectorAll('[role="tab"]');
+  function select(tab) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { select(t); });
+    t.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        var next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+        select(next); next.focus();
+      }
+    });
+  });
+  select(tabs[0]);
+})();
+</script>

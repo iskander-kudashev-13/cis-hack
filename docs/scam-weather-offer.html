@@ -1,0 +1,374 @@
+<title>Scam Weather и Devin</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one column of reading width, the diagram breaks out wider; run-time above the line, design-time below */
+:root {
+  --bg: #F2F4F6;
+  --surface: #FFFFFF;
+  --fg: #14202B;
+  --muted: #5A6A77;
+  --line: #C6D0D8;
+  --ours: #1F5F8B;
+  --ours-soft: #E2EDF5;
+  --devin: #B4530C;
+  --devin-soft: #FBEBDA;
+  --bank-soft: #EEF1F3;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E151B; --surface: #16212A; --fg: #E5EBF0; --muted: #93A3B0; --line: #2D3B47;
+    --ours: #72B3E0; --ours-soft: #15303F; --devin: #F2A54C; --devin-soft: #3A2814; --bank-soft: #1B2731;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E151B; --surface: #16212A; --fg: #E5EBF0; --muted: #93A3B0; --line: #2D3B47;
+  --ours: #72B3E0; --ours-soft: #15303F; --devin: #F2A54C; --devin-soft: #3A2814; --bank-soft: #1B2731;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-sans); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px; }
+.read { max-width: 760px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1.05; margin: 0 0 16px; letter-spacing: -.02em; text-wrap: balance; }
+h2 { font-size: 24px; margin: 0 0 16px; letter-spacing: -.01em; text-wrap: balance; }
+.lead { font-size: 18px; color: var(--fg); margin: 0; max-width: 66ch; }
+.lead b { color: var(--devin); font-weight: 600; }
+p { margin: 0; }
+
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px 20px 16px; }
+.scroll { overflow-x: auto; }
+svg.arch { display: block; width: 100%; min-width: 820px; height: auto; font-family: var(--font-sans); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 14px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 22px; height: 14px; border-radius: 3px; display: inline-block; }
+.sw.bank { background: var(--bank-soft); border: 1px solid var(--line); }
+.sw.ours { background: var(--ours-soft); border: 1.5px solid var(--ours); }
+.sw.devin { background: var(--devin-soft); border: 1.5px dashed var(--devin); }
+.sw.wire { height: 0; border-top: 2px solid var(--ours); border-radius: 0; }
+
+/* SVG classes */
+.b-bank { fill: var(--bank-soft); stroke: var(--line); }
+.b-outer { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.b-ours { fill: var(--ours-soft); stroke: var(--ours); stroke-width: 1.5; }
+.b-devin { fill: var(--devin-soft); stroke: var(--devin); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.b-devin-solid { fill: var(--devin); stroke: none; }
+.b-plain { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+.t-title { fill: var(--fg); font-size: 14px; font-weight: 600; }
+.t-sub { fill: var(--muted); font-size: 11.5px; }
+.t-head { fill: var(--fg); font-size: 17px; font-weight: 700; }
+.t-zone { fill: var(--muted); font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .06em; }
+.t-wire { fill: var(--ours); font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+.t-devwire { fill: var(--devin); font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+.t-line { fill: var(--fg); font-size: 12.5px; }
+.t-inv { fill: var(--bg); }
+.t-inv-sub { fill: var(--bg); font-size: 12.5px; opacity: .92; }
+.t-tag { fill: var(--devin); font-family: var(--font-mono); font-size: 10px; font-weight: 500; }
+.tag { fill: var(--surface); stroke: var(--devin); stroke-width: 1; }
+.badge { fill: var(--surface); stroke: var(--ours); stroke-width: 1; }
+.w-ours { stroke: var(--ours); stroke-width: 2; fill: none; }
+.w-thin { stroke: var(--muted); stroke-width: 1.2; fill: none; }
+.w-devin { stroke: var(--devin); stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+.divider { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 2 5; }
+.ah-ours { fill: var(--ours); }
+.ah-thin { fill: var(--muted); }
+.ah-devin { fill: var(--devin); }
+
+.when { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.offer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card.dev { border-color: var(--devin); }
+.card h3 { margin: 0; font-size: 17px; }
+.card .who { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--ours); }
+.card.dev .who { color: var(--devin); }
+.card p { color: var(--muted); font-size: 15px; }
+
+.split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.col { min-width: 0; }
+.col h3 { margin: 0 0 10px; font-size: 15px; font-family: var(--font-mono); font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.col.yes h3 { color: var(--devin); }
+.col.no h3 { color: var(--muted); }
+.col ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.col li { padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 15px; }
+.col.yes li { border-left: 3px solid var(--devin); }
+
+ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 12px; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+ol.steps li::before { content: counter(s); font-family: var(--font-mono); font-size: 13px; color: var(--ours); border: 1.5px solid var(--ours); border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; }
+ol.steps b { font-weight: 600; }
+ol.steps code, .foot code { font-family: var(--font-mono); font-size: 13.5px; background: var(--ours-soft); padding: 1px 5px; border-radius: 4px; }
+.foot { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 680px) {
+  .offer, .split, .when { grid-template-columns: 1fr; }
+  body { padding-block: 28px 48px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="read">
+    <p class="eyebrow">CIS Sprint × Devin · трек Protect the big guy</p>
+    <h1>Scam Weather</h1>
+    <p class="lead">Сеть, через которую банк жертвы BEC за секунды предупреждает банк получателя, пока деньги ещё лежат на счёте дропа. Оркестратор между банками видит только шифротекст. <b>Devin подключает каждый новый банк</b>: пишет адаптер, интеграцию и черновик политики, прогоняет проверки и открывает PR, который ревьюят люди банка.</p>
+  </header>
+
+  <figure>
+    <div class="scroll">
+      <svg class="arch" viewBox="0 0 1200 690" role="img" aria-labelledby="arch-t arch-d">
+        <title id="arch-t">Архитектура Scam Weather</title>
+        <desc id="arch-d">Банк A отправляет зашифрованный сигнал через слепой оркестратор в банк B. Ниже линии — этап подключения, где Devin пишет адаптер, политику и интеграцию и проходит проверки до PR.</desc>
+        <defs>
+          <marker id="m-ours" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-ours"/></marker>
+          <marker id="m-thin" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-thin"/></marker>
+          <marker id="m-devin" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-devin"/></marker>
+        </defs>
+
+        <text x="20" y="34" class="t-zone">RUN-TIME · КАЖДЫЙ ПЛАТЁЖ · ДЕТЕРМИНИРОВАННЫЙ КОД, БЕЗ ИИ</text>
+
+        <!-- Bank A -->
+        <rect x="20" y="56" width="280" height="328" rx="10" class="b-outer"/>
+        <text x="36" y="84" class="t-head">Банк A</text>
+        <text x="36" y="104" class="t-sub">банк жертвы, отправляет сигнал</text>
+
+        <rect x="36" y="120" width="248" height="52" rx="6" class="b-bank"/>
+        <text x="50" y="142" class="t-title">Фрод-система банка</text>
+        <text x="50" y="160" class="t-sub">подтверждённый BEC-кейс</text>
+
+        <rect x="36" y="184" width="248" height="52" rx="6" class="b-devin"/>
+        <text x="50" y="206" class="t-title">Адаптер формата</text>
+        <text x="50" y="224" class="t-sub">JSON / ISO 20022 → общая схема</text>
+        <rect x="228" y="192" width="48" height="18" rx="9" class="tag"/>
+        <text x="252" y="205" text-anchor="middle" class="t-tag">Devin</text>
+
+        <rect x="36" y="248" width="248" height="52" rx="6" class="b-ours"/>
+        <text x="50" y="270" class="t-title">Node SDK</text>
+        <text x="50" y="288" class="t-sub">HMAC(IBAN) · подпись · шифрование</text>
+
+        <rect x="36" y="312" width="248" height="52" rx="6" class="b-bank"/>
+        <text x="50" y="334" class="t-title">Ключи в HSM банка</text>
+        <text x="50" y="352" class="t-sub">наружу уходит только шифротекст</text>
+
+        <path d="M160,172 V182" class="w-thin" marker-end="url(#m-thin)"/>
+        <path d="M160,236 V246" class="w-thin" marker-end="url(#m-thin)"/>
+        <path d="M160,300 V312" class="w-thin"/>
+
+        <!-- Orchestrator -->
+        <rect x="460" y="184" width="280" height="180" rx="10" class="b-ours"/>
+        <text x="478" y="212" class="t-head">Оркестратор</text>
+        <text x="478" y="232" class="t-sub">слепой ретранслятор, наш SaaS</text>
+        <text x="478" y="258" class="t-line">• mTLS, банк подключается сам</text>
+        <text x="478" y="278" class="t-line">• очередь шифротекстов и журнал</text>
+        <text x="478" y="298" class="t-line">• подписанные ACK, срок, отзыв</text>
+        <rect x="478" y="316" width="244" height="30" rx="15" class="badge"/>
+        <text x="600" y="336" text-anchor="middle" class="t-wire">не видит IBAN, сумм и имён</text>
+
+        <text x="600" y="148" text-anchor="middle" class="t-sub">не стоит на пути платежа: SWIFT идёт мимо</text>
+        <text x="600" y="166" text-anchor="middle" class="t-sub">сигналы приходят заранее, сверка локальная</text>
+
+        <!-- wires -->
+        <path d="M284,274 H458" class="w-ours" marker-end="url(#m-ours)"/>
+        <text x="372" y="264" text-anchor="middle" class="t-wire">POST /signals</text>
+        <text x="372" y="292" text-anchor="middle" class="t-sub">шифротекст</text>
+
+        <path d="M740,274 H820 V146 H914" class="w-ours" marker-end="url(#m-ours)"/>
+        <text x="830" y="200" class="t-wire">GET /inbox</text>
+        <text x="830" y="216" class="t-sub">банк сам забирает</text>
+        <path d="M914,166 H836 V250 H742" class="w-thin" stroke-dasharray="4 4" marker-end="url(#m-thin)"/>
+        <text x="756" y="244" class="t-sub">ACK</text>
+
+        <!-- Bank B -->
+        <rect x="900" y="56" width="280" height="328" rx="10" class="b-outer"/>
+        <text x="916" y="84" class="t-head">Банк B</text>
+        <text x="916" y="104" class="t-sub">банк получателя, где счёт дропа</text>
+
+        <rect x="916" y="120" width="248" height="52" rx="6" class="b-ours"/>
+        <text x="930" y="142" class="t-title">Node SDK</text>
+        <text x="930" y="160" class="t-sub">проверка подписи · расшифровка</text>
+
+        <rect x="916" y="184" width="248" height="52" rx="6" class="b-devin"/>
+        <text x="930" y="206" class="t-title">Политика банка</text>
+        <text x="930" y="224" class="t-sub">policy.yaml, утверждает Fraud Risk</text>
+        <rect x="1108" y="192" width="48" height="18" rx="9" class="tag"/>
+        <text x="1132" y="205" text-anchor="middle" class="t-tag">Devin</text>
+
+        <rect x="916" y="248" width="248" height="52" rx="6" class="b-devin"/>
+        <text x="930" y="270" class="t-title">Интеграция</text>
+        <text x="930" y="288" class="t-sub">заморозка исходящих · кейс</text>
+        <rect x="1108" y="256" width="48" height="18" rx="9" class="tag"/>
+        <text x="1132" y="269" text-anchor="middle" class="t-tag">Devin</text>
+
+        <rect x="916" y="312" width="248" height="52" rx="6" class="b-bank"/>
+        <text x="930" y="334" class="t-title">Платёжная система банка</text>
+        <text x="930" y="352" class="t-sub">деньги не уходят со счёта дропа</text>
+
+        <path d="M1040,172 V182" class="w-thin" marker-end="url(#m-thin)"/>
+        <path d="M1040,236 V246" class="w-thin" marker-end="url(#m-thin)"/>
+        <path d="M1040,300 V310" class="w-thin" marker-end="url(#m-thin)"/>
+
+        <!-- divider -->
+        <line x1="20" y1="414" x2="1180" y2="414" class="divider"/>
+        <text x="20" y="444" class="t-zone">DESIGN-TIME · ПОДКЛЮЧЕНИЕ БАНКА · ДНИ, ЧЕРЕЗ PR И РЕВЬЮ ЛЮДЕЙ</text>
+
+        <!-- Devin pipeline -->
+        <rect x="20" y="464" width="250" height="160" rx="8" class="b-plain"/>
+        <text x="36" y="490" class="t-title">Запуск через Devin API</text>
+        <text x="36" y="516" class="t-line">банк выпустил новую схему</text>
+        <text x="36" y="538" class="t-line">тестовый репозиторий банка</text>
+        <text x="36" y="560" class="t-line">общий контракт сигнала</text>
+        <text x="36" y="582" class="t-line">синтетические примеры и кейсы</text>
+
+        <rect x="320" y="464" width="280" height="160" rx="8" class="b-devin-solid"/>
+        <text x="338" y="494" class="t-head t-inv">Devin</text>
+        <text x="338" y="520" class="t-inv-sub">пишет адаптер и интеграцию</text>
+        <text x="338" y="542" class="t-inv-sub">готовит черновик policy.yaml</text>
+        <text x="338" y="564" class="t-inv-sub">пишет тесты под каждый кейс</text>
+        <text x="338" y="586" class="t-inv-sub">работает в песочнице Daytona</text>
+
+        <rect x="650" y="464" width="240" height="160" rx="8" class="b-ours"/>
+        <text x="666" y="490" class="t-title">Проверки соответствия</text>
+        <text x="666" y="516" class="t-line">подпись и шифрование верны</text>
+        <text x="666" y="538" class="t-line">старая версия не применяется</text>
+        <text x="666" y="560" class="t-line">лишние поля не уходят</text>
+        <text x="666" y="582" class="t-line">все кейсы проходят</text>
+
+        <rect x="940" y="464" width="240" height="160" rx="8" class="b-plain"/>
+        <text x="956" y="490" class="t-title">PR в репозиторий банка</text>
+        <text x="956" y="516" class="t-line">ревью Fraud Risk и ИБ</text>
+        <text x="956" y="538" class="t-line">мерж делают люди банка</text>
+        <text x="956" y="560" class="t-line">деплой в узел банка</text>
+
+        <path d="M270,544 H318" class="w-devin" marker-end="url(#m-devin)"/>
+        <path d="M600,544 H648" class="w-devin" marker-end="url(#m-devin)"/>
+        <path d="M890,544 H938" class="w-devin" marker-end="url(#m-devin)"/>
+
+        <path d="M770,624 V652 H460 V626" class="w-devin" marker-end="url(#m-devin)"/>
+        <text x="615" y="674" text-anchor="middle" class="t-devwire">проверка упала → Devin правит код</text>
+
+        <path d="M1060,464 V386" class="w-devin" marker-end="url(#m-devin)"/>
+        <text x="1068" y="438" class="t-devwire">деплой</text>
+      </svg>
+    </div>
+    <div class="legend">
+      <span><i class="sw bank"></i>код и системы банка</span>
+      <span><i class="sw ours"></i>наш продукт</span>
+      <span><i class="sw devin"></i>пишет Devin, утверждают люди банка</span>
+      <span><i class="sw wire"></i>только шифротекст</span>
+    </div>
+  </figure>
+
+  <section>
+    <h2>Когда срабатывает защита</h2>
+    <p class="read" style="color:var(--muted);margin-bottom:16px">Исполненный SWIFT-перевод остановить нельзя. Поэтому сигнал описывает счёт, а не операцию: первую жертву сеть чаще всего не спасает, но защищает следующих и перехватывает обналичку.</p>
+    <div class="when">
+      <div class="card">
+        <span class="who">До отправки · банк A</span>
+        <h3>Следующая жертва</h3>
+        <p>Счёт уже есть в сигналах. Узел банка A сверяет хэш получателя с локальной копией до формирования pacs.008, антифрод ставит платёж на проверку.</p>
+      </div>
+      <div class="card">
+        <span class="who">При поступлении · банк B</span>
+        <h3>Помеченный счёт</h3>
+        <p>Входящий pacs.008 идёт на счёт из сигналов. Банк B зачисляет деньги, но блокирует исходящие с этого счёта.</p>
+      </div>
+      <div class="card">
+        <span class="who">После исполнения · банк B</span>
+        <h3>Деньги у дропа</h3>
+        <p>Банк B замораживает исходящие до обналички и запускает возврат через camt.056 или gpi Stop and Recall.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Что мы предлагаем банкам</h2>
+    <div class="offer">
+      <div class="card">
+        <span class="who">Сеть</span>
+        <h3>Оркестратор сигналов</h3>
+        <p>Слепой ретранслятор между банками-участниками. Хранит только конверты и журнал доставки, поэтому не становится хранилищем данных клиентов.</p>
+      </div>
+      <div class="card">
+        <span class="who">Протокол</span>
+        <h3>Node SDK и спецификация</h3>
+        <p>Подпись Ed25519, шифрование под получателя, сопоставление счёта по HMAC. Работает внутри контура банка, ключи остаются в его HSM.</p>
+      </div>
+      <div class="card dev">
+        <span class="who">Devin</span>
+        <h3>Подключение банка через PR</h3>
+        <p>Когда банк выпускает новую версию схемы, Scam Weather запускает сессию Devin через API. Devin обновляет коннектор, прогоняет проверки и возвращает инженеру банка черновой PR с результатами тестов. Цель — подключать банк за дни, а не за месяцы.</p>
+      </div>
+      <div class="card dev">
+        <span class="who">Devin</span>
+        <h3>Кейсы как код</h3>
+        <p>Каждый новый тип мошенничества становится карточкой и тестом. Devin обновляет код во всех узлах, чтобы новый кейс ловился, а честные платежи не блокировались.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Где Devin, а где нет</h2>
+    <div class="split">
+      <div class="col yes">
+        <h3>Devin делает</h3>
+        <ul>
+          <li>Пишет адаптер под формат банка</li>
+          <li>Пишет интеграцию с фрод-системой и платежами</li>
+          <li>Готовит черновик политики для Fraud Risk</li>
+          <li>Пишет тесты и чинит код, пока проверки не пройдут</li>
+          <li>Обновляет узлы, когда появляется новый кейс</li>
+        </ul>
+      </div>
+      <div class="col no">
+        <h3>Devin не делает</h3>
+        <ul>
+          <li>Не решает судьбу платежа в момент перевода</li>
+          <li>Не видит живые данные клиентов</li>
+          <li>Не мержит и не деплоит без людей банка</li>
+          <li>Не получает доступа к ключам</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Экономика</h2>
+    <div class="when">
+      <div class="card">
+        <span class="who">Кто платит</span>
+        <p>Банки-участники: подписка плюс плата за подключение.</p>
+      </div>
+      <div class="card">
+        <span class="who">Почему платят</span>
+        <p>В Великобритании с 7 октября 2024 года банки возмещают жертвам APP-мошенничества до £85 000, пополам между банком отправителя и банком получателя. Банк дропа платит из своего кармана.</p>
+      </div>
+      <div class="card">
+        <span class="who">Стоимость поддержки</span>
+        <p>Hub хранит только шифротекст, поэтому он дешёвый. Главный расход таких сетей — интеграция форматов, и её берёт на себя Devin. Цены пока гипотеза.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="read">
+    <h2>Путь одного сигнала</h2>
+    <ol class="steps">
+      <li><span>Банк A подтверждает BEC-кейс: деньги клиента ушли на счёт X.</span></li>
+      <li><span>Узел банка A хэширует IBAN через <code>HMAC</code>, подписывает и шифрует сигнал для группы банков.</span></li>
+      <li><span>Оркестратор кладёт шифротекст в очередь и пишет запись в журнал. Содержимое он прочитать не может.</span></li>
+      <li><span>Узел банка B сам забирает сигнал, проверяет подпись, расшифровывает и находит у себя счёт X по хэшу.</span></li>
+      <li><span>Политика банка B: <b>счёт своего клиента и кейс подтверждён</b> → заморозка исходящих на 24 часа и кейс аналитику. Обратно уходит подписанный ACK.</span></li>
+    </ol>
+  </section>
+
+  <p class="foot read">Подробная архитектура: <code>docs/ARCHITECTURE.md</code>. Библиотека кейсов: <code>bec-cases/</code>.</p>
+</div>

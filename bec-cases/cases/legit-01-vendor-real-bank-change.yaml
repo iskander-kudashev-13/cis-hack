@@ -1,0 +1,33 @@
+id: legit-01-vendor-real-bank-change
+title: "КОНТРОЛЬ: поставщик честно сменил банк"
+scheme: legitimate
+target: buyer
+based_on: "Контрольный кейс на ложные срабатывания"
+story: >
+  Поставщик действительно перешёл в другой банк. Он уведомил с настоящего домена, внёс новые
+  реквизиты через свой кабинет поставщика с MFA. AP перезвонил по номеру из справочника — подтвердили.
+  Первый платёж уходит через 5 дней по графику.
+
+attacker_controls: []
+clean_channels: [vendor_portal, phone_on_file]
+single_point_of_trust: "—"
+
+events:
+  - {t: "2026-11-10T11:00", type: email_received,      visible_to: [buyer], attrs: {from: finance@northwind-supply.com, urgency: low, intent: details_change}}
+  - {t: "2026-11-10T11:30", type: vendor_bank_changed, visible_to: [buyer], attrs: {entity: "Northwind Supply", via: portal, approvers: 2, delay_hours: 72, changed_by: vendor_portal_user}}
+  - {t: "2026-11-10T11:30", type: beneficiary_added,   visible_to: [buyer, bank], attrs: {account: "US-CHK-55301", bank_country: US, name_match: match, account_age_days: 2100}}
+  - {t: "2026-11-10T12:05", type: confirmation,        visible_to: [buyer], attrs: {channel: callback_on_file, result: confirmed}}
+  - {t: "2026-11-15T06:00", type: payment_created,     visible_to: [buyer, bank], attrs: {amount: 95000, currency: USD, new_beneficiary: true, amount_vs_median: 1.0, created_by: payment_run, channel: erp_batch}}
+
+signals_fired:
+  - {signal: new_beneficiary}
+
+expected:
+  max_risk: low
+  action: allow
+  must_not_fire: [lookalike_domain, payee_name_mismatch, single_approver_change, bank_details_changed_recently, callback_refused, payment_redirect_intent]
+catch_stage: none
+
+devin_task: >
+  Если кейс даёт ложное срабатывание: поправить детектор, не ослабляя кейсы bec-*.
+  Все карточки должны проходить одновременно.

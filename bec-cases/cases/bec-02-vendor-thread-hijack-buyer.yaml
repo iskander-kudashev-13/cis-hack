@@ -1,0 +1,45 @@
+id: bec-02-vendor-thread-hijack-buyer
+title: "Перехват переписки по счёту: «мы сменили банк» покупателю"
+scheme: vendor_email_compromise
+target: buyer
+based_on: "Toyota Boshoku, 2019 — ~$37M, атакующие убедили сменить реквизиты для текущего платежа"
+story: >
+  Атакующий во взломанном ящике бухгалтера поставщика отвечает в реальной переписке по счёту
+  #4471: «Наш банк на аудите, оплатите на новый счёт до пятницы, иначе остановим отгрузку».
+  Сотрудник AP покупателя меняет реквизиты в ERP по письму, плановый платёжный прогон уходит на новый счёт.
+
+attacker_controls: [vendor_email]
+clean_channels: [phone_on_file, vendor_portal]
+single_point_of_trust: "Один сотрудник AP меняет реквизиты поставщика в ERP по письму, без второго подтверждения и задержки"
+
+events:
+  - {t: "2026-11-18T14:05", type: email_received,      visible_to: [buyer], attrs: {from: billing@northwind-supply.com, thread_hijack: true, urgency: high, intent: payment_redirect, attachment: "updated_bank_letter.pdf"}}
+  - {t: "2026-11-18T14:40", type: vendor_bank_changed, visible_to: [buyer], attrs: {entity: "Northwind Supply", via: email, approvers: 1, delay_hours: 0, changed_by: ap_clerk_2}}
+  - {t: "2026-11-18T14:40", type: beneficiary_added,   visible_to: [buyer, bank], attrs: {account: "MX-CLABE-0021…", bank_country: MX, name_match: no_match, account_age_days: 40}}
+  - {t: "2026-11-19T06:00", type: payment_created,     visible_to: [buyer, bank], attrs: {amount: 1200000, currency: USD, new_beneficiary: true, amount_vs_median: 1.0, created_by: payment_run, channel: erp_batch}}
+
+signals_fired:
+  - {signal: thread_hijack}
+  - {signal: urgency_pressure}
+  - {signal: payment_redirect_intent}
+  - {signal: single_approver_change}
+  - {signal: bank_details_changed_recently}
+  - {signal: new_beneficiary}
+  - {signal: new_beneficiary_country}
+  - {signal: payee_name_mismatch}
+
+expected:
+  min_risk: critical
+  action: hold
+  require: [callback_on_file]
+  must_fire: [payment_redirect_intent, single_approver_change, bank_details_changed_recently, payee_name_mismatch]
+  note: "amount_spike НЕ срабатывает: сумма обычная для поставщика — ловим по смене реквизитов, а не по сумме"
+catch_stage: vendor_bank_changed
+
+resolution:
+  - {t: "2026-11-18T15:10", type: confirmation, attrs: {channel: callback_on_file, result: denied}}
+
+devin_task: >
+  В ERP-сервисе эндпоинт смены банковских реквизитов поставщика должен требовать двух
+  подтверждающих, задержку 72 ч до первого платежа на новые реквизиты и запись о
+  callback_on_file. Добавить тест: смена реквизитов по письму одним сотрудником -> платёж не уходит.

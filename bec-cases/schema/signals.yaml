@@ -1,0 +1,47 @@
+# Словарь сигналов BEC Guard.
+# weight — стартовые эвристические веса (0–30), НЕ откалиброваны на реальных данных.
+# Итоговый риск = сумма весов сработавших сигналов.
+# Пороги: low < 20 <= medium < 40 <= high < 70 <= critical
+
+risk_bands:
+  low: 0
+  medium: 20
+  high: 40
+  critical: 70
+
+signals:
+  # --- Канал и личность (CH) ---
+  mailbox_new_geo:            {layer: channel,  weight: 15, desc: "Вход в почту из новой страны / IP, невозможное путешествие"}
+  mailbox_forward_rule:       {layer: channel,  weight: 25, desc: "В ящике создано правило пересылки/удаления писем (классический признак взлома)"}
+  lookalike_domain:           {layer: channel,  weight: 30, desc: "Домен отправителя похож на известный (Левенштейн <= 2, гомоглифы, punycode)"}
+  young_sender_domain:        {layer: channel,  weight: 15, desc: "Домен отправителя зарегистрирован < 30 дней назад"}
+  reply_to_mismatch:          {layer: channel,  weight: 15, desc: "Reply-To не совпадает с From"}
+  external_sender_claims_internal: {layer: channel, weight: 20, desc: "Внешний адрес (gmail и т.п.) выдаёт себя за сотрудника компании"}
+  thread_hijack:              {layer: channel,  weight: 10, desc: "Ответ в существующей переписке, но с новыми платёжными данными"}
+  inbound_call_not_on_file:   {layer: channel,  weight: 15, desc: "Входящий звонок/видео не с номера или аккаунта из анкеты"}
+  callback_refused:           {layer: channel,  weight: 20, desc: "Звонящий уклоняется от обратного звонка или подтверждения в приложении"}
+
+  # --- Содержание (CT) ---
+  urgency_pressure:           {layer: content,  weight: 10, desc: "«Сегодня», «срочно», угроза сорвать сделку/поставку"}
+  secrecy_request:            {layer: content,  weight: 10, desc: "«Конфиденциально», «никому не говорите»"}
+  payment_redirect_intent:    {layer: content,  weight: 20, desc: "Намерение перенаправить платёж: новые реквизиты, новый счёт (LLM/правила)"}
+
+  # --- Поведение клиента (BH) ---
+  unusual_request_channel:    {layer: behavior, weight: 15, desc: "Клиент/сотрудник никогда не присылал такие запросы этим каналом"}
+  off_hours:                  {layer: behavior, weight: 5,  desc: "Действие вне обычного времени активности"}
+
+  # --- Транзакция (TX) ---
+  new_beneficiary:            {layer: transaction, weight: 10, desc: "Платёж новому получателю"}
+  amount_spike:               {layer: transaction, weight: 15, desc: "Сумма >= 3x медианы клиента / поставщика"}
+  new_beneficiary_country:    {layer: transaction, weight: 10, desc: "Страна или банк получателя не встречались в истории"}
+  split_payments:             {layer: transaction, weight: 15, desc: "Серия платежей на несколько новых счетов за короткое время"}
+  bank_details_changed_recently: {layer: transaction, weight: 25, desc: "Платёж в течение 72 ч после смены реквизитов"}
+
+  # --- Получатель (BN) ---
+  payee_name_mismatch:        {layer: beneficiary, weight: 25, desc: "Имя владельца счёта не совпадает с получателем (аналог CoP/VoP)"}
+  young_beneficiary_account:  {layer: beneficiary, weight: 15, desc: "Счёт получателя открыт < 90 дней назад"}
+  pass_through_account:       {layer: beneficiary, weight: 20, desc: ">90% входящих средств уходят дальше за несколько часов (признак дропа)"}
+
+  # --- Процесс (PR) ---
+  single_approver_change:     {layer: process,  weight: 20, desc: "Реквизиты сменены одним человеком без второго подтверждения и задержки"}
+  api_change_unusual_actor:   {layer: process,  weight: 20, desc: "Изменение через API токеном/актором, который обычно так не делает"}
