@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const SchemaVersion = 1
@@ -57,9 +58,15 @@ type Payload struct {
 }
 
 type Indicator struct {
-	Type  string `json:"type"` // "account_hmac"
+	Type  string `json:"type"` // IndicatorAccount or IndicatorWallet
 	Value string `json:"value"`
 }
+
+// Indicator types a node can match against its own payments.
+const (
+	IndicatorAccount = "account_hmac"
+	IndicatorWallet  = "wallet_hmac"
+)
 
 // Sealed is a payload encrypted for one recipient.
 type Sealed struct {
@@ -225,9 +232,29 @@ func NormalizeIBAN(s string) string {
 
 // AccountIndicator returns HMAC-SHA256(groupKey, normalized IBAN) in hex.
 func AccountIndicator(groupKey []byte, iban string) Indicator {
+	return Indicator{Type: IndicatorAccount, Value: hmacHex(groupKey, NormalizeIBAN(iban))}
+}
+
+// NormalizeWallet lower-cases a crypto wallet address and removes all
+// whitespace, so every bank hashes the same address to the same indicator.
+func NormalizeWallet(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return unicode.ToLower(r)
+	}, s)
+}
+
+// WalletIndicator returns HMAC-SHA256(groupKey, normalized wallet address) in hex.
+func WalletIndicator(groupKey []byte, address string) Indicator {
+	return Indicator{Type: IndicatorWallet, Value: hmacHex(groupKey, NormalizeWallet(address))}
+}
+
+func hmacHex(groupKey []byte, s string) string {
 	m := hmac.New(sha256.New, groupKey)
-	m.Write([]byte(NormalizeIBAN(iban)))
-	return Indicator{Type: "account_hmac", Value: hex.EncodeToString(m.Sum(nil))}
+	m.Write([]byte(s))
+	return hex.EncodeToString(m.Sum(nil))
 }
 
 // RandomID returns a short random id with a prefix.
