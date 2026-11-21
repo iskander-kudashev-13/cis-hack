@@ -1,13 +1,12 @@
-import { CloudLightning, Layers, MonitorPlay, PanelLeftClose, PanelLeftOpen, Radio, UserPlus } from "lucide-react";
+import { CloudLightning, Layers, MonitorPlay, PanelLeftClose, PanelLeftOpen, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 
 export type Page = "live" | "signals" | "hub" | "onboarding";
 
 const NAV: { id: Page; label: string; icon: ReactNode }[] = [
-  { id: "live", label: "Live demo", icon: <MonitorPlay size={16} /> },
-  { id: "signals", label: "Signals", icon: <Radio size={16} /> },
-  { id: "hub", label: "Hub", icon: <Layers size={16} /> },
-  { id: "onboarding", label: "Devin onboarding", icon: <UserPlus size={16} /> },
+  { id: "live", label: "Bank", icon: <MonitorPlay size={16} /> },
+  { id: "hub", label: "Network operator", icon: <Layers size={16} /> },
+  { id: "onboarding", label: "Devin: new bank", icon: <UserPlus size={16} /> },
 ];
 
 export function Sidebar({ page, onPage, collapsed, onToggle }: {
