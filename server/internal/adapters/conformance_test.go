@@ -68,3 +68,16 @@ func TestBankBRejectsMissingIBAN(t *testing.T) {
 		t.Error("expected error")
 	}
 }
+
+func TestBankBWallet(t *testing.T) {
+	got, err := (BankB{}).ParsePayment([]byte(`{"txn_ref":"w1","creditor":{"iban":"ae07 0331 2345 6789 0123 456","wallet":" 0xABCD\tEF01 "},"amt":{"value":"1","ccy":"AED"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.BeneficiaryWallet != "0xabcdef01" || got.BeneficiaryIBAN != "AE070331234567890123456" {
+		t.Errorf("got %+v", got)
+	}
+	if _, err := (BankB{}).ParsePayment([]byte(`{"txn_ref":"x","creditor":{"wallet":"  "},"amt":{"value":"1","ccy":"AED"}}`)); err == nil {
+		t.Error("expected error for blank wallet and no IBAN")
+	}
+}

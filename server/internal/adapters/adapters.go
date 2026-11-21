@@ -14,10 +14,11 @@ import (
 
 // Payment is a bank's outgoing transfer in the shared shape.
 type Payment struct {
-	PaymentID       string
-	BeneficiaryIBAN string // normalized
-	AmountMinor     int64
-	Currency        string
+	PaymentID         string
+	BeneficiaryIBAN   string // normalized
+	BeneficiaryWallet string // normalized crypto wallet address, optional
+	AmountMinor       int64
+	Currency          string
 }
 
 // Case is a confirmed fraud case in the shared shape.
@@ -74,18 +75,21 @@ func ParseBankACase(raw []byte) (Case, error) {
 		AmountMinor: minor, Currency: strings.ToUpper(c.Currency), Status: c.Status}, nil
 }
 
-// ---- Bank B: core banking payment record (JSON, nested, lower-case IBAN with spaces) ----
+// ---- Bank B: core banking payment record (JSON, nested, lower-case IBAN with spaces, optional wallet) ----
 
 type BankB struct{}
 
 func (BankB) BankID() string { return "bank-b" }
-func (BankB) Format() string { return "core-banking JSON (txn_ref / creditor.iban / amt)" }
+func (BankB) Format() string {
+	return "core-banking JSON (txn_ref / creditor.iban or creditor.wallet / amt)"
+}
 
 func (BankB) ParsePayment(raw []byte) (Payment, error) {
 	var p struct {
 		TxnRef   string `json:"txn_ref"`
 		Creditor struct {
-			IBAN string `json:"iban"`
+			IBAN   string `json:"iban"`
+			Wallet string `json:"wallet"`
 		} `json:"creditor"`
 		Amt struct {
 			Value string `json:"value"`
@@ -95,14 +99,15 @@ func (BankB) ParsePayment(raw []byte) (Payment, error) {
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return Payment{}, fmt.Errorf("bank-b payment: %w", err)
 	}
-	if p.Creditor.IBAN == "" {
-		return Payment{}, fmt.Errorf("bank-b payment %s: missing creditor.iban", p.TxnRef)
+	iban, wallet := protocol.NormalizeIBAN(p.Creditor.IBAN), protocol.NormalizeWallet(p.Creditor.Wallet)
+	if iban == "" && wallet == "" {
+		return Payment{}, fmt.Errorf("bank-b payment %s: missing creditor.iban or creditor.wallet", p.TxnRef)
 	}
 	minor, err := toMinor(p.Amt.Value)
 	if err != nil {
 		return Payment{}, err
 	}
-	return Payment{PaymentID: p.TxnRef, BeneficiaryIBAN: protocol.NormalizeIBAN(p.Creditor.IBAN),
+	return Payment{PaymentID: p.TxnRef, BeneficiaryIBAN: iban, BeneficiaryWallet: wallet,
 		AmountMinor: minor, Currency: strings.ToUpper(p.Amt.Ccy)}, nil
 }
 

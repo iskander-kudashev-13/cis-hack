@@ -1,4 +1,5 @@
 {
   "pay-match.json":   {"PaymentID":"pay-match","BeneficiaryIBAN":"AE070331234567890123456","AmountMinor":45000000,"Currency":"AED"},
-  "pay-control.json": {"PaymentID":"pay-control","BeneficiaryIBAN":"AE460260001234567890101","AmountMinor":45000000,"Currency":"AED"}
+  "pay-control.json": {"PaymentID":"pay-control","BeneficiaryIBAN":"AE460260001234567890101","AmountMinor":45000000,"Currency":"AED"},
+  "pay-wallet.json":  {"PaymentID":"pay-wallet","BeneficiaryWallet":"0xabcdef0123456789abcdef0123456789abcdef01","AmountMinor":1250050,"Currency":"USD"}
 }

@@ -58,7 +58,10 @@ func NewCache() *Cache { return &Cache{entries: map[string]*CacheEntry{}} }
 
 // Apply stores a verified, decrypted event and returns the ACK status.
 func (c *Cache) Apply(env protocol.Envelope, p protocol.Payload, now time.Time) protocol.AckStatus {
-	if env.SchemaVersion != protocol.SchemaVersion {
+	if env.SchemaVersion < protocol.MinSchemaVersion || env.SchemaVersion > protocol.SchemaVersion {
+		return protocol.AckInvalid
+	}
+	if env.Event == protocol.EventUpsert && !protocol.SupportsIndicator(env.SchemaVersion, p.Indicator.Type) {
 		return protocol.AckInvalid
 	}
 	cur, ok := c.entries[env.SignalID]
@@ -75,10 +78,14 @@ func (c *Cache) Apply(env protocol.Envelope, p protocol.Payload, now time.Time) 
 	return protocol.AckApplied
 }
 
-// Match returns the active entry whose indicator equals the given one.
+// Match returns the active entry whose indicator has the same type and value.
+// An account_hmac never matches a wallet_hmac, even with an equal value.
 func (c *Cache) Match(ind protocol.Indicator, now time.Time) (*CacheEntry, bool) {
+	if ind.Type == "" || ind.Value == "" {
+		return nil, false
+	}
 	for _, e := range c.entries {
-		if e.State(now) == StateActive && e.Payload.Indicator == ind {
+		if e.State(now) == StateActive && e.Payload.Indicator.Type == ind.Type && e.Payload.Indicator.Value == ind.Value {
 			return e, true
 		}
 	}
@@ -159,6 +166,11 @@ func (n *Node) Member() protocol.Member {
 // Indicator hashes an IBAN with the group key. The IBAN never leaves the bank.
 func (n *Node) Indicator(iban string) protocol.Indicator {
 	return protocol.AccountIndicator(n.GroupKey, iban)
+}
+
+// WalletIndicator hashes a crypto wallet address with the group key.
+func (n *Node) WalletIndicator(address string) protocol.Indicator {
+	return protocol.WalletIndicator(n.GroupKey, address)
 }
 
 func (n *Node) refreshDirectory() error {
@@ -334,9 +346,24 @@ func (n *Node) Run(interval time.Duration, stop <-chan struct{}) {
 
 // Check matches a beneficiary IBAN against the local cache. No network call.
 func (n *Node) Check(iban string) (*CacheEntry, bool) {
+	if protocol.NormalizeIBAN(iban) == "" {
+		return nil, false
+	}
+	return n.match(n.Indicator(iban))
+}
+
+// CheckWallet matches a beneficiary crypto wallet address against the local cache. No network call.
+func (n *Node) CheckWallet(address string) (*CacheEntry, bool) {
+	if protocol.NormalizeWallet(address) == "" {
+		return nil, false
+	}
+	return n.match(n.WalletIndicator(address))
+}
+
+func (n *Node) match(ind protocol.Indicator) (*CacheEntry, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.cache.Match(n.Indicator(iban), n.now())
+	return n.cache.Match(ind, n.now())
 }
 
 type Channel struct {
