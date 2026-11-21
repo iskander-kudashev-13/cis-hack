@@ -26,7 +26,7 @@
   --border-2: #33373e;
   --text: #eef1f4;
   --text-2: #a3acb7;
-  --text-3: #6c757f;
+  --text-3: #9399a3;
   --accent: #4d86e8;
   --accent-soft: #15233b;
   --pos: #1f9254;
@@ -62,3 +62,68 @@ body {
 .sw-fade { animation: sw-fade 220ms var(--ease-out); }
 @keyframes sw-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .sw-pulse { animation: sw-pulse 1.6s ease-in-out infinite; }
+
+/* The bank desk uses the same cobalt, charcoal and round corners as the network dashboard. */
+.protection-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(118deg, #346de5, #407cf2);
+  padding: 26px 28px;
+  border-radius: 28px;
+  color: white;
+}
+.protection-orbit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-radial-gradient(circle at 106% -9%, transparent 0 25px, rgb(255 255 255 / 22%) 26px, transparent 27px 46px);
+  mask-image: linear-gradient(240deg, black, transparent 72%);
+}
+.signal-route {
+  display: grid;
+  grid-template-columns: minmax(230px, .72fr) minmax(0, 1.65fr);
+  align-items: center;
+  gap: 2rem;
+  padding: 21px 28px;
+  border: 1px solid #292b31;
+  border-radius: 28px;
+  background: #151517;
+}
+.route-tag { background: #24252a; color: #b5bac5; border-radius: 1rem; padding: 3px 8px; font-size: 11px; }
+.route-stops { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.route-line { display: flex; align-items: center; margin-bottom: 7px; }
+.route-stop:not(:last-child) .route-line::after { content: ""; flex: 1; margin: 0 9px; border-top: 1px dashed #464b57; }
+.route-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: #aac8ff; background: #202c42; }
+.route-stop[data-state="ready"] .route-icon { background: #292a30; color: #b7bdc8; }
+.route-stop[data-state="active"] .route-icon { color: #8fd6a4; background: #21372c; }
+.route-stop[data-state="paused"] .route-icon { color: #f5c84b; background: #382f1c; }
+:where(button, a):focus-visible { outline: 2px solid #9bbcff; outline-offset: 3px; }
+@media (max-width: 1000px) {
+  .signal-route { grid-template-columns: 1fr; gap: 18px; }
+}
+@media (max-width: 640px) {
+  .signal-route, .protection-card { padding: 20px; }
+  .bank-desk { gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sw-pulse, .sw-fade, .sw-pop { animation: none; }
+}
+.mobile-console { display: none; }
+@media (max-width: 767px) {
+  .console-shell { flex-direction: column-reverse; }
+  .mobile-console { display: flex; flex: none; justify-content: space-around; background: var(--sidebar); border-top: 1px solid var(--border); padding: 4px 0 max(4px, env(safe-area-inset-bottom)); }
+  .mobile-console button { display: grid; justify-items: center; align-content: center; flex: 1; gap: 2px; min-height: 44px; font-size: 10px; color: var(--text-2); }
+  .mobile-console button[aria-current] { color: #91b9ff; }
+}
+.payments-section { container-type: inline-size; }
+.txn-risk-label { display: none; }
+@container (max-width: 790px) {
+  .txn-list-head { display: none; }
+  .txn-list-row { grid-template-columns: 14px minmax(0, 1fr) auto; gap: 5px 10px; padding: 12px 16px; }
+  .txn-list-row > :nth-child(3) { grid-area: 2 / 2 / 3 / 4; }
+  .txn-list-row > :nth-child(4), .txn-list-row > :nth-child(5) { display: none; }
+  .txn-list-row > :nth-child(7) { grid-column: 2; }
+  .txn-list-row > :nth-child(8) { justify-self: end; }
+  .txn-risk-label { display: inline; }
+}

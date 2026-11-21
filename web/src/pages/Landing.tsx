@@ -31,14 +31,14 @@ export function Landing({ onEnter }: { onEnter: (s: Session) => void }) {
           <Logo />
           <div className="flex-1" />
           <span className="hidden text-[11px] uppercase tracking-[0.12em] text-white/50 md:block">Demo network · 7 UAE banks · synthetic data</span>
-          <button onClick={() => setAuth("signin")} className="ml-6 text-[13px] text-white/80 hover:text-white">Sign in</button>
+          <button onClick={() => setAuth("signin")} className="whitespace-nowrap md:ml-6 text-[13px] text-white/80 hover:text-white">Sign in</button>
           <button onClick={() => setAuth("register")} className="rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90">Request access</button>
         </nav>
 
         <div className="relative mx-auto max-w-[1200px] px-8 pb-24 pt-[150px]">
           <div className="text-[11px] uppercase tracking-[0.14em] text-white/50">Interbank fraud intelligence</div>
-          <h1 className={`mt-4 text-[88px] ${H}`}>Scam Weather.<br />Fraud Early-Warning<br />Network.</h1>
-          <div className="mt-10 flex gap-3">
+          <h1 className={`mt-4 text-[clamp(44px,7vw,88px)] ${H}`}>Scam Weather.<br />Fraud Early-Warning<br />Network.</h1>
+          <div className="mt-10 flex flex-wrap gap-3">
             <button onClick={() => setAuth("register")} className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-[14px] font-medium text-black hover:bg-white/90">
               Join the network <ArrowRight size={16} />
             </button>
@@ -51,8 +51,8 @@ export function Landing({ onEnter }: { onEnter: (s: Session) => void }) {
       {/* Problem, light */}
       <section className="relative overflow-hidden text-[#0b0b0d]" style={{ background: PASTEL }}>
         <div className="absolute inset-0 opacity-70" style={{ backgroundImage: STRIPES_LIGHT, maskImage: "linear-gradient(90deg, transparent 35%, #000 75%)", WebkitMaskImage: "linear-gradient(90deg, transparent 35%, #000 75%)" }} />
-        <div className="relative mx-auto grid min-h-[520px] max-w-[1200px] grid-cols-2 px-8 py-20">
-          <h2 className={`text-[64px] ${H}`}>Fraud Moves Faster Than Banks Talk.</h2>
+        <div className="relative mx-auto grid min-h-[520px] max-w-[1200px] gap-6 md:grid-cols-2 px-8 py-20">
+          <h2 className={`text-[clamp(36px,5.2vw,64px)] ${H}`}>Fraud Moves Faster Than Banks Talk.</h2>
           <p className="self-end justify-self-end max-w-[360px] text-[14px] leading-relaxed text-black/70">
             A business email is hacked, the supplier's "new" bank details go out, and the money lands in a mule account at another bank.
             The victim's bank knows within hours. The receiving bank finds out weeks later, after the next victim has paid too.
@@ -64,8 +64,8 @@ export function Landing({ onEnter }: { onEnter: (s: Session) => void }) {
       {/* Platform, dark stripes */}
       <section className="relative overflow-hidden" style={{ backgroundImage: STRIPES_DARK }}>
         <div className="relative mx-auto max-w-[1200px] px-8 py-20">
-          <h2 className={`text-[64px] ${H}`}>One Network.<br />Every Bank Warned.</h2>
-          <div className="mt-14 grid grid-cols-3 gap-4">
+          <h2 className={`text-[clamp(36px,5.2vw,64px)] ${H}`}>One Network.<br />Every Bank Warned.</h2>
+          <div className="mt-14 grid md:grid-cols-3 gap-4">
             <PastelCard label="Real-time warnings" icon={<Zap size={16} />}>One bank confirms a mule account; every member has it within a second and holds the next transfer.</PastelCard>
             <PastelCard label="Blind by design" icon={<Lock size={16} />}>Signed and encrypted per bank. The operator relays ciphertext and is never in the payment path.</PastelCard>
             <PastelCard label="Onboarding by Devin" icon={<Bot size={16} />}>Devin writes each bank's connector and tests, then opens a pull request for the bank to approve.</PastelCard>
@@ -77,21 +77,21 @@ export function Landing({ onEnter }: { onEnter: (s: Session) => void }) {
       {/* Product, light with mockup cards */}
       <section className="relative overflow-hidden text-[#0b0b0d]" style={{ background: PASTEL }}>
         <div className="absolute inset-0 opacity-60" style={{ backgroundImage: STRIPES_LIGHT, maskImage: "linear-gradient(90deg, transparent 45%, #000 85%)", WebkitMaskImage: "linear-gradient(90deg, transparent 45%, #000 85%)" }} />
-        <div className="relative mx-auto grid min-h-[560px] max-w-[1200px] grid-cols-2 items-center px-8 py-20">
+        <div className="relative mx-auto grid min-h-[560px] max-w-[1200px] gap-8 md:grid-cols-2 items-center px-8 py-20">
           <div>
-            <h2 className={`text-[64px] ${H}`}>Built for the Way Fraud Teams Work.</h2>
+            <h2 className={`text-[clamp(36px,5.2vw,64px)] ${H}`}>Built for the Way Fraud Teams Work.</h2>
             <p className="mt-10 max-w-[380px] text-[14px] leading-relaxed text-black/70">
               No new screens for analysts to watch. The check runs inside the bank's payment flow, on a local copy of the warnings, and answers in milliseconds.
             </p>
           </div>
           <div className="relative h-[380px]">
-            <div className="absolute left-[60px] top-[10px] w-[330px] rotate-[8deg] rounded-2xl p-6 text-white shadow-2xl"
+            <div className="absolute left-0 lg:left-[60px] top-[10px] w-[78%] max-w-[330px] rotate-[8deg] rounded-2xl p-6 text-white shadow-2xl"
               style={{ background: "#141418", backgroundImage: STRIPES_DARK }}>
               <div className="flex text-[12px] text-white/60"><span>Warning · sig_8cf4</span><div className="flex-1" /><Logo small /></div>
               <div className="mt-10 text-[30px] font-light tracking-tight">AE07 •••• 3456</div>
               <div className="text-[12px] text-white/60">Delivered to 6 of 6 banks · 0.9 s</div>
             </div>
-            <div className="absolute left-[140px] top-[170px] w-[330px] -rotate-[4deg] rounded-2xl p-6 shadow-2xl" style={{ background: PASTEL }}>
+            <div className="absolute left-[15%] lg:left-[140px] top-[170px] w-[78%] max-w-[330px] -rotate-[4deg] rounded-2xl p-6 shadow-2xl" style={{ background: PASTEL }}>
               <div className="flex text-[12px] text-black/60"><span>Mashreq · payment check</span><div className="flex-1" /><Logo small dark /></div>
               <div className="mt-10 text-[30px] font-light tracking-tight">AED 450,000</div>
               <div className="text-[12px] font-medium text-[#b42318]">Held for review · reported mule account</div>
@@ -102,11 +102,11 @@ export function Landing({ onEnter }: { onEnter: (s: Session) => void }) {
       </section>
 
       {/* Why, split */}
-      <section className="grid min-h-[520px] grid-cols-[1fr_1.4fr]">
+      <section className="grid min-h-[520px] md:grid-cols-[1fr_1.4fr]">
         <div style={{ backgroundImage: "repeating-linear-gradient(-58deg, rgba(190,200,255,0.35) 0 4px, transparent 4px 22px)" }} />
         <div className="relative text-[#0b0b0d]" style={{ background: PASTEL }}>
-          <div className="px-14 py-20">
-            <h2 className={`text-[64px] ${H}`}>Why Banks Join<br />Scam Weather.</h2>
+          <div className="px-8 md:px-14 py-20">
+            <h2 className={`text-[clamp(36px,5.2vw,64px)] ${H}`}>Why Banks Join<br />Scam Weather.</h2>
             <div className="mt-14 grid grid-cols-2 gap-x-10 gap-y-8 text-[13px]">
               <Why icon={<Zap size={15} />} title="Stop the second victim">Warnings land before the next transfer, not weeks later in a report.</Why>
               <Why icon={<ShieldCheck size={15} />} title="Share without exposure">Account numbers stay encrypted; only member banks can match them.</Why>
@@ -124,7 +124,7 @@ export function Landing({ onEnter }: { onEnter: (s: Session) => void }) {
           <p className="mt-8 text-[36px] font-light leading-tight tracking-[-0.03em]">
             To make every bank's fraud signal protect the customers of every other bank.
           </p>
-          <div className="mt-10 flex gap-3">
+          <div className="mt-10 flex flex-wrap gap-3">
             <button onClick={() => setAuth("register")} className="rounded-full bg-white px-6 py-3 text-[14px] font-medium text-black hover:bg-white/90">Request access</button>
             <button onClick={() => setAuth("signin")} className="rounded-full border border-white/30 px-6 py-3 text-[14px] hover:bg-white/10">Sign in</button>
           </div>

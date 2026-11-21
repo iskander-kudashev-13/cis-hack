@@ -15,7 +15,16 @@ export function Sidebar({ page, onPage, collapsed, onToggle, user, onSignOut }: 
   user?: { name: string; org: string }; onSignOut?: () => void;
 }) {
   return (
-    <aside className={`flex h-full flex-none flex-col border-r border-border bg-sidebar pb-3 pt-3.5 transition-[width] duration-200 ${collapsed ? "w-[56px] px-2" : "w-[200px] px-3"}`}>
+    <>
+    <nav aria-label="Mobile console" className="mobile-console">
+      {NAV.map(({ id, label, icon }) => (
+        <button key={id} aria-label={label} title={label} aria-current={page === id ? "page" : undefined} onClick={() => onPage(id)}>
+          {icon}<span>{{ live: "Bank", txns: "Payments", hub: "Network", signals: "Signals", onboarding: "Devin" }[id]}</span>
+        </button>
+      ))}
+      <button onClick={onSignOut} aria-label="Sign out"><LogOut size={16} /><span>Sign out</span></button>
+    </nav>
+    <aside className={`hidden h-full md:flex flex-none flex-col border-r border-border bg-sidebar pb-3 pt-3.5 transition-[width] duration-200 ${collapsed ? "w-[56px] px-2" : "w-[200px] px-3"}`}>
       <div className={`flex items-center gap-2.5 pb-3 pt-0.5 ${collapsed ? "justify-center px-0" : "px-2"}`}>
         <div className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-gradient-to-br from-accent to-[#7c5cd6] text-white">
           <CloudLightning size={17} />
@@ -57,5 +66,6 @@ export function Sidebar({ page, onPage, collapsed, onToggle, user, onSignOut }: 
         {collapsed ? <PanelLeftOpen size={16} /> : <><PanelLeftClose size={16} /><span>Collapse</span></>}
       </button>
     </aside>
+    </>
   );
 }

@@ -40,7 +40,7 @@ export function OrchestratorView({ state }: { state: State }) {
         <span className="font-mono text-[12px] text-text-3">{new Date(now).toLocaleTimeString("en-GB")}</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 xl:grid-cols-3">
         {/* Hero: network status */}
         <div className="relative overflow-hidden rounded-[28px] p-7 text-white" style={{ background: "#3b78f0" }}>
           <div className="absolute -right-16 -top-16 h-[220px] w-[220px] rounded-full border border-white/25" />
@@ -84,12 +84,12 @@ export function OrchestratorView({ state }: { state: State }) {
         </Tile>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 xl:grid-cols-3">
         <Tile title="Delivery by bank" sub="confirmed / received" to="sw-members">
           <HatchBars rows={delivery} />
         </Tile>
 
-        <div className="col-span-2 rounded-[28px] p-7 text-white" style={{ background: "#e8573a" }}>
+        <div className="xl:col-span-2 rounded-[28px] p-7 text-white" style={{ background: "#e8573a" }}>
           <div className="flex items-start">
             <div>
               <div className="text-[17px] font-medium">Signal traffic</div>
@@ -102,16 +102,16 @@ export function OrchestratorView({ state }: { state: State }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Stat label="Latency p95" value={`${a.p95} ms`} pill={a.p95 < 3000 ? ["within SLA", "pos"] : ["above SLA", "neg"]} />
         <Stat label="Confirmations" value={`${a.acked}`} pill={[`of ${a.expected}`, "muted"]} />
         <Stat label="Delivery rate" value={`${a.deliveryRate.toFixed(1)}%`} pill={a.deliveryRate > 95 ? ["healthy", "pos"] : ["degraded", "neg"]} />
         <Stat label="Hub" value={h.paused ? "Paused" : "Online"} pill={h.paused ? ["check", "neg"] : ["operational", "pos"]} />
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card id="sw-members" title="Member health" icon={<Server size={14} />} pad={false}>
-          <table className="w-full text-[12.5px]">
+          <div className="overflow-x-auto"><table className="w-full text-[12.5px]">
             <thead><tr className="text-left text-[11px] uppercase tracking-wide text-text-3">
               <Th>Bank</Th><Th>Status</Th><Th>Last sync</Th><Th right>Sent</Th><Th right>Received</Th><Th right>Avg latency</Th>
             </tr></thead>
@@ -131,14 +131,14 @@ export function OrchestratorView({ state }: { state: State }) {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         </Card>
         <Card title="Signals by issuing bank" icon={<Radio size={14} />}>
           <Donut slices={a.byIssuer} names={a.names} />
         </Card>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card id="sw-stream" title="Live message stream" icon={<Activity size={14} />} pad={false}
           right={<span className="flex items-center gap-1 text-[11px] text-text-3"><Lock size={11} /> click a row for routing details</span>}>
           <div className="max-h-[420px] overflow-auto">
@@ -198,7 +198,7 @@ function Mini({ label, value, color }: { label: string; value: ReactNode; color:
 
 function Stat({ label, value, pill }: { label: string; value: string; pill: [string, "pos" | "neg" | "muted"] }) {
   return (
-    <div className="flex items-center rounded-[24px] bg-[#151517] px-6 py-5">
+    <div className="flex flex-wrap items-center gap-2 rounded-[24px] bg-[#151517] px-4 py-5 sm:px-6">
       <div>
         <div className="text-[13px] text-text-3">{label}</div>
         <div className="mt-1 text-[26px] font-medium tracking-tight tabular-nums">{value}</div>

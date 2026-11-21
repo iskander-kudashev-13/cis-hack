@@ -96,7 +96,7 @@ export function OnboardingPage() {
           <p><b className="text-text">Devin writes that connector.</b> Below is a real run: CBD uses ISO 20022 pacs.008 XML. Devin got the task through the API, wrote the code and tests, ran them and opened a draft PR. A CBD engineer has the final say.</p>
         </div>
 
-        <ol className="mt-5 grid grid-cols-6 gap-2">
+        <ol className="mt-5 grid grid-cols-2 lg:grid-cols-6 gap-2">
           {STEPS.map((s, i) => {
             const done = i < REACHED, active = i === REACHED;
             return (
@@ -138,7 +138,7 @@ export function OnboardingPage() {
         </div>
       </Panel>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Section n={1} title="What CBD gave" icon={<FileInput size={15} />}>
           <div className="mb-1.5 text-[12px] text-text-2">A sample payment in CBD's format (pacs.008 XML):</div>
           <Code text={sampleXml.trim()} />
@@ -204,7 +204,7 @@ export function OnboardingPage() {
         <Code text={current.text.trimEnd()} diff={file === "adapters.go"} />
       </Section>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Section n={5} title="Test results" icon={<ShieldCheck size={15} />} right={<Badge tone="good">PASS</Badge>}>
           <div className="mb-2 font-mono text-[11.5px] text-text-3">$ cd server &amp;&amp; go test -v ./internal/adapters/</div>
           <ul className="space-y-1 font-mono text-[11.5px]">

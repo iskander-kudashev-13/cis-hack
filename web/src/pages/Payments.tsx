@@ -59,7 +59,7 @@ export function PaymentsPage({ state, busy, run }: { state: State; busy: boolean
         <div className="text-[12.5px] text-text-3">Mashreq fraud desk · every outgoing payment is checked against alerts from other banks before it leaves · demo data</div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
         <Stat label="Payments checked" value={ops.total} sub="since the last reset" />
         <Stat label="Approved automatically" value={(c.approved ?? 0) + (c.released ?? 0)} sub={`${c.released ?? 0} released by analyst`} dot="#5fbf7b" />
         <Stat label="Waiting for analyst" value={pending.length} sub={`${c.held ?? 0} warning match · ${c.unverified ?? 0} not covered`} dot="#e8573a" hot={pending.length > 0} />
@@ -69,12 +69,12 @@ export function PaymentsPage({ state, busy, run }: { state: State; busy: boolean
       <label className="flex items-center gap-3 rounded-full bg-[#151517] px-5 py-3.5">
         <Search size={17} className="text-text-3" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by transaction ID, IBAN, mobile number, payee, customer or signal ID"
-          className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-text-3" />
+          className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-text-3" />
         {searching && <Loader2 size={15} className="animate-spin text-text-3" />}
         {q && <button onClick={() => setQ("")} className="text-text-3 hover:text-text"><X size={15} /></button>}
       </label>
 
-      <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] gap-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           {!found && (
             <Card title="Review queue" right={<span className="text-[12px] text-text-3">{pending.length} waiting</span>}>
@@ -117,7 +117,7 @@ export function PaymentsPage({ state, busy, run }: { state: State; busy: boolean
           )}
 
           <Card title={found ? `Search results · ${found.length}` : "All payments"} right={<span className="text-[12px] text-text-3">{found ? `for “${q}”` : "newest first · click a row"}</span>}>
-            <div className="grid grid-cols-[18px_92px_minmax(0,1.2fr)_minmax(0,1fr)_56px_100px_76px_150px] gap-3 px-6 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-text-3">
+            <div className="txn-list-head grid grid-cols-[18px_92px_minmax(0,1.2fr)_minmax(0,1fr)_56px_100px_76px_150px] gap-3 px-6 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-text-3">
               <span /><span>ID</span><span>Customer → payee</span><span>Payee account</span><span>Rail</span><span className="text-right">Amount</span><span>Risk</span><span>Status</span>
             </div>
             <div className="max-h-[560px] overflow-auto">
@@ -185,19 +185,19 @@ function TxnRow({ t, busy, decide, kinds }: { t: Txn; busy: boolean; decide: (id
   return (
     <div className="border-t border-white/5">
       <button onClick={() => setOpen(!open)}
-        className="grid w-full grid-cols-[18px_92px_minmax(0,1.2fr)_minmax(0,1fr)_56px_100px_76px_150px] items-center gap-3 px-6 py-2.5 text-left text-[12.5px] hover:bg-white/[0.03]">
+        className="txn-list-row grid w-full grid-cols-[18px_92px_minmax(0,1.2fr)_minmax(0,1fr)_56px_100px_76px_150px] items-center gap-3 px-6 py-2.5 text-left text-[12.5px] hover:bg-white/[0.03]">
         <span className="text-text-3">{open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</span>
         <span className="font-mono text-[11.5px] text-text-2">{t.id}</span>
         <span className="truncate">{t.customer} <span className="text-text-3">→</span> {t.payee}</span>
         <span className="truncate font-mono text-[11.5px] text-text-2">{payeeMasked(t)}</span>
         <span className="text-text-3">{t.channel}</span>
         <span className="text-right tabular-nums">{aed(t.amount)}</span>
-        <span className="flex items-center gap-1.5 tabular-nums"><span className="h-2 w-2 rounded-full" style={{ background: PRIORITY[t.priority].color }} />{t.score}</span>
+        <span className="flex items-center gap-1.5 tabular-nums"><span className="h-2 w-2 rounded-full" style={{ background: PRIORITY[t.priority].color }} /><span className="txn-risk-label">Risk</span>{t.score}</span>
         <span><StatusPill s={t.status} /></span>
       </button>
       {open && (
         <div className="mx-6 mb-3 rounded-2xl bg-[#1c1c1f] p-4 text-[12.5px]">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
             <KV k="Time" v={new Date(t.at).toLocaleString("en-GB")} />
             <KV k="Rail" v={t.channel === "Aani" ? "Aani instant payment (mobile alias)" : "UAEFTS bank transfer"} />
             <KV k="Payee account" v={t.payee_id} mono />
@@ -313,7 +313,7 @@ function Stat({ label, value, sub, dot, hot }: { label: string; value: ReactNode
 
 function Card({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
   return (
-    <section className="overflow-hidden rounded-[28px] bg-[#151517]">
+    <section className="payments-section overflow-hidden rounded-[28px] bg-[#151517]">
       <header className="flex items-center gap-2 px-6 pb-3 pt-5"><h2 className="text-[16px] font-medium">{title}</h2><div className="flex-1" />{right}</header>
       {children}
     </section>

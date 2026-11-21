@@ -74,9 +74,9 @@ export function App() {
   if (!session) return <Landing onEnter={enter} />;
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="console-shell flex h-full overflow-hidden">
       <Sidebar page={page} onPage={go} collapsed={collapsed} onToggle={toggle} user={session} onSignOut={signOut} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Header title={TITLES[page]} state={state} live={live} busy={busy}
           onPause={(p) => run(() => api.pause(p))} onReset={() => run(api.reset)} />
         {error && (
