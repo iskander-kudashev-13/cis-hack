@@ -45,6 +45,42 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
         <span className="font-mono text-[12px] text-text-3">{new Date(now).toLocaleTimeString("en-GB")}</span>
       </div>
 
+      <section id="sw-payment" className="scroll-mt-4 rounded-[28px] p-7 text-white transition-colors" style={{ background: !last ? "#232326" : last.decision === "REVIEW_REQUIRED" ? "#e8573a" : "#1f9254" }}>
+        <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em]">Demo</span>
+              <span className="text-[17px] font-medium">Outgoing transfer check</span>
+            </div>
+            <div className="mt-0.5 text-[13px] text-white/75">A {b.name} customer sends money. The payee is checked against warnings from other banks before the money leaves.</div>
+            {last ? (
+              <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-2">
+                <div className="text-[40px] font-medium leading-none tracking-tight">{money(pay(last.payment_id)?.amount ?? 0, pay(last.payment_id)?.currency ?? "")}</div>
+                <div>
+                  <div className="flex items-center gap-2 text-[16px] font-medium">
+                    {last.decision === "REVIEW_REQUIRED" ? <><AlertTriangle size={18} /> Held for review</> : <><CheckCircle2 size={18} /> Approved</>}
+                  </div>
+                  <div className="text-[13px] text-white/85">to {pay(last.payment_id)?.beneficiary_masked} · {clock(last.at)}</div>
+                </div>
+                <div className="w-full text-[12.5px] text-white/85">
+                  Why: {last.decision === "REVIEW_REQUIRED" ? "another bank reported this account. " : "no active warning for this account. "}
+                  {last.decision === "REVIEW_REQUIRED" ? last.reason.replace(/[a-z]+(?:_[a-z]+)+/g, (m) => REASON[m] ?? m.replace(/_/g, " ")) : ""}
+                </div>
+              </div>
+            ) : <div className="mt-4 text-[15px] text-white/85">No transfers checked yet. Pay the reported account, send the warning, then pay again.</div>}
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="text-[12px] font-medium uppercase tracking-[0.1em] text-white/70">Simulate a customer transfer</div>
+            {b.payments.map((p) => (
+              <button key={p.payment_id} disabled={busy} onClick={() => run(() => api.evaluate(p.payment_id))}
+                className="rounded-full bg-white px-4 py-2 text-left text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-50">
+                {p.kind === "match" ? `Pay ${p.beneficiary_masked} (reported)` : `Pay ${p.beneficiary_masked} (clean)`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="protection-card">
           <div className="protection-orbit" aria-hidden="true" />
@@ -85,7 +121,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
 
       <SignalRoute state={state} busy={busy} publish={() => run(api.publish)} withdraw={() => run(api.retract)} />
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4">
         <section id="sw-inbox" className="scroll-mt-4 overflow-hidden rounded-[28px] bg-[#151517]">
           <header className="flex items-center gap-2 px-6 pb-3 pt-5">
             <Bell size={15} className="text-text-3" />
@@ -100,39 +136,6 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
           </div>
         </section>
 
-        <div className="flex flex-col gap-4">
-          <section id="sw-payment" className="scroll-mt-4 rounded-[28px] p-7 text-white" style={{ background: !last ? "#232326" : last.decision === "REVIEW_REQUIRED" ? "#e8573a" : "#1f9254" }}>
-            <div className="flex items-start">
-              <div>
-                <div className="text-[17px] font-medium">Outgoing transfer check</div>
-                <div className="text-[13px] text-white/75">a Mashreq customer sends money · checked before it leaves</div>
-              </div>
-              <div className="flex-1" />
-
-            </div>
-            {last ? (
-              <>
-                <div className="mt-6 text-[40px] font-medium leading-none tracking-tight">{money(pay(last.payment_id)?.amount ?? 0, pay(last.payment_id)?.currency ?? "")}</div>
-                <div className="mt-2 flex items-center gap-2 text-[16px] font-medium">
-                  {last.decision === "REVIEW_REQUIRED" ? <><AlertTriangle size={18} /> Held for review</> : <><CheckCircle2 size={18} /> Approved</>}
-                </div>
-                <div className="mt-1 text-[13px] text-white/85">to {pay(last.payment_id)?.beneficiary_masked} · {clock(last.at)}</div>
-                <div className="mt-1 text-[12.5px] text-white/75">
-                  {last.reason}
-                </div>
-              </>
-            ) : <div className="mt-6 text-[15px] text-white/85">No transfers checked yet.</div>}
-            <div className="mt-6 text-[12px] font-medium uppercase tracking-[0.1em] text-white/70">Simulate a customer transfer</div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {b.payments.map((p) => (
-                <button key={p.payment_id} disabled={busy} onClick={() => run(() => api.evaluate(p.payment_id))}
-                  className="rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-50">
-                  {p.kind === "match" ? `Pay ${p.beneficiary_masked} (reported)` : `Pay ${p.beneficiary_masked} (clean)`}
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
       </div>
     </div>
   );
