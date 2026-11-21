@@ -93,7 +93,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
         </section>
 
         <div className="flex flex-col gap-4">
-          <section id="sw-payment" className="scroll-mt-4 rounded-[28px] p-7 text-white" style={{ background: last?.decision === "REVIEW_REQUIRED" ? "#e8573a" : "#1f9254" }}>
+          <section id="sw-payment" className="scroll-mt-4 rounded-[28px] p-7 text-white" style={{ background: !last ? "#232326" : last.decision === "REVIEW_REQUIRED" ? "#e8573a" : "#1f9254" }}>
             <div className="flex items-start">
               <div>
                 <div className="text-[17px] font-medium">Outgoing transfer check</div>
@@ -126,7 +126,8 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
           </section>
 
           <section className="rounded-[28px] bg-[#151517] p-7">
-            <div className="text-[17px] font-medium">Simulate another bank</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-3">Demo controls</div>
+            <div className="mt-1 text-[17px] font-medium">Simulate another bank</div>
             <div className="text-[13px] text-text-3">Emirates NBD confirms a fraud on account AE07 •••• 3456</div>
             <div className="mt-5 flex gap-2">
               <button disabled={busy || aActive} onClick={() => run(api.publish)}
