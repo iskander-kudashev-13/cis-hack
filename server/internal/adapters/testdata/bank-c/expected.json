@@ -1,0 +1,4 @@
+{
+  "pay-match.xml":   {"PaymentID":"pay-c-match","BeneficiaryIBAN":"AE070331234567890123456","AmountMinor":45000000,"Currency":"AED"},
+  "pay-control.xml": {"PaymentID":"pay-c-control","BeneficiaryIBAN":"AE460260001234567890101","AmountMinor":1250050,"Currency":"AED"}
+}

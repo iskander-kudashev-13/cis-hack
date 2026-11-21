@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr><MsgId>BANKC-20261121-0001</MsgId><CreDtTm>2026-11-21T09:15:00</CreDtTm><NbOfTxs>1</NbOfTxs></GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId><EndToEndId>pay-c-match</EndToEndId></PmtId>
+      <IntrBkSttlmAmt Ccy="AED">450000.00</IntrBkSttlmAmt>
+      <Cdtr><Nm>Northwind Supply</Nm></Cdtr>
+      <CdtrAcct><Id><IBAN>AE070331234567890123456</IBAN></Id></CdtrAcct>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>
