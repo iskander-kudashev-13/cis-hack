@@ -1,0 +1,1 @@
+{"txn_ref":"pay-vasp","creditor":{"iban":"ae12 0860 0000 0012 3456 789","name":"Example Digital Assets FZE","vasp":{"name":"Example Digital Assets FZE","wallet":"0x5A0b 54D5 dc17 e0AA dC38 3d2d b43B 0a0D 3E02 9c4c"}},"amt":{"value":"85000.00","ccy":"AED"},"channel":"retail_online"}

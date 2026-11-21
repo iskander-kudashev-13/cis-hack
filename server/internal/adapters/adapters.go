@@ -16,8 +16,11 @@ import (
 type Payment struct {
 	PaymentID       string
 	BeneficiaryIBAN string // normalized
-	AmountMinor     int64
-	Currency        string
+	// BeneficiaryWallet is the crypto wallet a transfer to a licensed VASP
+	// credits, normalized with protocol.NormalizeWallet. Empty otherwise.
+	BeneficiaryWallet string
+	AmountMinor       int64
+	Currency          string
 }
 
 // Case is a confirmed fraud case in the shared shape.
@@ -79,13 +82,18 @@ func ParseBankACase(raw []byte) (Case, error) {
 type BankB struct{}
 
 func (BankB) BankID() string { return "bank-b" }
-func (BankB) Format() string { return "core-banking JSON (txn_ref / creditor.iban / amt)" }
+func (BankB) Format() string {
+	return "core-banking JSON (txn_ref / creditor.iban / creditor.vasp.wallet / amt)"
+}
 
 func (BankB) ParsePayment(raw []byte) (Payment, error) {
 	var p struct {
 		TxnRef   string `json:"txn_ref"`
 		Creditor struct {
 			IBAN string `json:"iban"`
+			VASP struct {
+				Wallet string `json:"wallet"`
+			} `json:"vasp"`
 		} `json:"creditor"`
 		Amt struct {
 			Value string `json:"value"`
@@ -103,7 +111,8 @@ func (BankB) ParsePayment(raw []byte) (Payment, error) {
 		return Payment{}, err
 	}
 	return Payment{PaymentID: p.TxnRef, BeneficiaryIBAN: protocol.NormalizeIBAN(p.Creditor.IBAN),
-		AmountMinor: minor, Currency: strings.ToUpper(p.Amt.Ccy)}, nil
+		BeneficiaryWallet: protocol.NormalizeWallet(p.Creditor.VASP.Wallet),
+		AmountMinor:       minor, Currency: strings.ToUpper(p.Amt.Ccy)}, nil
 }
 
 // toMinor converts "450000.00" to 45000000.

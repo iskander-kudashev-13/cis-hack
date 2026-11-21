@@ -69,7 +69,7 @@ export type State = {
 
 export type TxnStatus = "approved" | "held" | "unverified" | "released" | "declined";
 export type Txn = {
-  id: string; at: string; customer: string; channel: string; payee: string; payee_type: "iban" | "mobile"; payee_id: string;
+  id: string; at: string; customer: string; channel: string; payee: string; payee_type: "iban" | "mobile" | "wallet"; payee_id: string;
   amount: number; currency: string; status: TxnStatus; reason: string;
   signal_id?: string; issuer?: string; kind?: string; gap_kind?: string; decided_by?: string; decided_at?: string;
   new_payee: boolean; score: number; priority: Priority; factors: { label: string; points: number }[];

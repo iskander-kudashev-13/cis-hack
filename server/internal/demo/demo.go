@@ -78,14 +78,15 @@ type Demo struct {
 	subs      map[chan []byte]bool
 	resetGen  atomic.Int32 // set by Reset so background traffic forgets old signals
 
-	txns       []Txn // Mashreq's outgoing payments, oldest first
-	txnSeq     int
-	flagged    map[string]string    // IBAN -> signal id of active peer warnings (lets the feed hit them)
-	devinTasks map[string]DevinTask // signal kind -> Devin session started for it
+	txns           []Txn // Mashreq's outgoing payments, oldest first
+	txnSeq         int
+	flagged        map[string]string    // IBAN -> signal id of active peer warnings (lets the feed hit them)
+	flaggedWallets map[string]string    // wallet address -> signal id, same for crypto off-ramp alerts
+	devinTasks     map[string]DevinTask // signal kind -> Devin session started for it
 }
 
 func New(hubURL string) (*Demo, error) {
-	d := &Demo{Hub: hub.New(), subs: map[chan []byte]bool{}, flagged: map[string]string{}, devinTasks: map[string]DevinTask{}}
+	d := &Demo{Hub: hub.New(), subs: map[chan []byte]bool{}, flagged: map[string]string{}, flaggedWallets: map[string]string{}, devinTasks: map[string]DevinTask{}}
 	gk := node.GroupKey(Audience)
 	var err error
 	if d.A, err = node.New("bank-a", "Emirates NBD", "token-bank-a", Audience, gk, hubURL, d.Log); err != nil {
@@ -182,6 +183,11 @@ func (d *Demo) background(stop <-chan struct{}) {
 						delete(d.flagged, iban)
 					}
 				}
+				for w, id := range d.flaggedWallets {
+					if id == active[i].id {
+						delete(d.flaggedWallets, w)
+					}
+				}
 				d.mu.Unlock()
 				active = append(active[:i], active[i+1:]...)
 				return
@@ -189,7 +195,7 @@ func (d *Demo) background(stop <-chan struct{}) {
 		}
 		n := d.Peers[rnd.Intn(len(d.Peers))]
 		k := d.pickKind(rnd)
-		ind, iban := d.indicatorFor(n, k, rnd)
+		ind, payee := d.indicatorFor(n, k, rnd)
 		p := protocol.Payload{
 			Indicator: ind, EvidenceLevel: "issuer_analyst_verified",
 			ReasonCode: k.Reasons[rnd.Intn(len(k.Reasons))], AmountBand: bands[rnd.Intn(len(bands))],
@@ -198,11 +204,15 @@ func (d *Demo) background(stop <-chan struct{}) {
 		}
 		if env, err := n.Publish(k.Kind, p, SignalTTL); err == nil {
 			active = append(active, pub{n, env.SignalID})
-			if iban != "" {
-				d.mu.Lock()
-				d.flagged[iban] = env.SignalID
-				d.mu.Unlock()
+			d.mu.Lock()
+			switch {
+			case payee == "":
+			case ind.Type == protocol.IndicatorWallet:
+				d.flaggedWallets[payee] = env.SignalID
+			default:
+				d.flagged[payee] = env.SignalID
 			}
+			d.mu.Unlock()
 		}
 	}
 	// A short burst so the operator dashboard has history right after start.
@@ -251,6 +261,7 @@ func (d *Demo) Reset() {
 	d.wasStale = false
 	d.txns, d.txnSeq = nil, 0
 	d.flagged = map[string]string{}
+	d.flaggedWallets = map[string]string{}
 	d.devinTasks = map[string]DevinTask{}
 	d.mu.Unlock()
 	d.Log("system", "Reset: hub and all banks cleared", "info")
@@ -314,7 +325,11 @@ func (d *Demo) Evaluate(paymentID string) (Decision, error) {
 	d.mu.Unlock()
 	dec := Decision{AttemptID: fmt.Sprintf("att-%03d", attempt), PaymentID: paymentID, At: time.Now().UTC(),
 		Decision: "APPROVED", Reason: "Local rules: no risk signal for this beneficiary"}
-	if e, hit := d.B.Check(pay.BeneficiaryIBAN); hit {
+	e, hit := d.B.Check(pay.BeneficiaryIBAN)
+	if !hit && pay.BeneficiaryWallet != "" {
+		e, hit = d.B.CheckWallet(pay.BeneficiaryWallet)
+	}
+	if hit {
 		dec.Decision = "REVIEW_REQUIRED"
 		dec.SignalID = e.Envelope.SignalID
 		dec.Revision = e.Envelope.Revision
@@ -329,6 +344,9 @@ func (d *Demo) Evaluate(paymentID string) (Decision, error) {
 	tx := Txn{ID: fmt.Sprintf("MSQ-%06d", 418200+d.txnSeq), At: dec.At, Customer: "Northwind Trading LLC", Channel: "UAEFTS", PayeeType: "iban",
 		PayeeID: pay.BeneficiaryIBAN, Payee: map[bool]string{true: "Northwind Supply", false: "Gulf Marine Supplies"}[paymentID == "pay-match"],
 		Amount: pay.AmountMinor / 100, Currency: pay.Currency, Status: "approved", Reason: "No active warning for this account"}
+	if pay.BeneficiaryWallet != "" {
+		tx.PayeeType, tx.PayeeID = "wallet", pay.BeneficiaryWallet
+	}
 	d.mu.Unlock()
 	tx.NewPayee = paymentID == "pay-match" // new bank details on a supplier invoice
 	d.check(&tx)

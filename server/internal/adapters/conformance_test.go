@@ -68,3 +68,18 @@ func TestBankBRejectsMissingIBAN(t *testing.T) {
 		t.Error("expected error")
 	}
 }
+
+func TestBankBMapsVASPWallet(t *testing.T) {
+	raw := `{"txn_ref":"pay-vasp","creditor":{"iban":"AE12 0860 0000 0012 3456 789","vasp":{"name":"Example VASP","wallet":" 0xAB12 cd34\tEF56 "}},"amt":{"value":"1000","ccy":"AED"}}`
+	p, err := (BankB{}).ParsePayment([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.BeneficiaryWallet != "0xab12cd34ef56" {
+		t.Errorf("wallet = %q", p.BeneficiaryWallet)
+	}
+	p, err = (BankB{}).ParsePayment([]byte(`{"txn_ref":"x","creditor":{"iban":"AE12"},"amt":{"value":"1","ccy":"AED"}}`))
+	if err != nil || p.BeneficiaryWallet != "" {
+		t.Errorf("payment without vasp: wallet %q, err %v", p.BeneficiaryWallet, err)
+	}
+}

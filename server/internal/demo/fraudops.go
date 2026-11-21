@@ -44,7 +44,7 @@ var signalKinds = []KindInfo{
 		Reasons: []string{"impersonation_scam", "fake_bank_call"}, Normalize: "E.164 UAE mobile number, e.g. +971501234567 (strip spaces, leading 00 → +, local 05 → +9715)",
 		PayField: "creditor.proxy.mobile (Aani alias payments)", Weight: 2, Severity: 8, Explain: "Victims get a call or message from someone posing as the bank or police and are told to send money to a 'safe' mobile number via Aani. Instant payments cannot be recalled.",
 		Checks: []string{"Call the customer and ask whether someone told them to move money", "Remind them the bank never asks for transfers to a safe account", "Release only after the customer confirms who the payee is"}},
-	{Kind: "crypto_offramp_wallet", Label: "Crypto off-ramp wallet", Fraud: "Scam proceeds cashed out to a crypto wallet via a VASP", Indicator: "wallet_hmac",
+	{Kind: "crypto_offramp_wallet", Label: "Crypto off-ramp wallet", Fraud: "Scam proceeds cashed out to a crypto wallet via a VASP", Indicator: "wallet_hmac", Covered: true,
 		Reasons: []string{"investment_scam_cashout", "mule_network_link"}, Normalize: "lower-case wallet address with whitespace removed",
 		PayField: "creditor.vasp.wallet (transfers to licensed VASPs)", Weight: 1, Severity: 7, Explain: "Scam proceeds are converted to crypto through a licensed exchange and sent to a wallet controlled by the fraud ring.",
 		Checks: []string{"Ask the customer about the investment platform", "Check the exchange and the wallet history if available", "Look for a pattern of growing transfers"}},
@@ -85,8 +85,8 @@ type Txn struct {
 	Customer  string     `json:"customer"`
 	Channel   string     `json:"channel"` // UAEFTS (IBAN) or Aani (mobile alias)
 	Payee     string     `json:"payee"`
-	PayeeType string     `json:"payee_type"` // iban | mobile
-	PayeeID   string     `json:"payee_id"`   // full IBAN or mobile number: Mashreq's own data
+	PayeeType string     `json:"payee_type"` // iban | mobile | wallet
+	PayeeID   string     `json:"payee_id"`   // full IBAN, mobile number or VASP wallet: Mashreq's own data
 	Amount    int64      `json:"amount"`
 	Currency  string     `json:"currency"`
 	Status    string     `json:"status"` // approved | held | unverified | released | declined
@@ -122,10 +122,22 @@ var (
 		"Saeed A.", "Maria K.", "Omar H.", "Priya N.", "Blue Lagoon Tourism", "Zayed Electronics", "Palm Clinic"}
 	payees = []string{"Horizon Building Materials", "Emirates Office Supply", "Crescent Freight", "Oasis Water Co", "Silverline IT", "Al Fajr Contracting",
 		"Rashid M.", "Fatima S.", "Investment Desk Ltd", "Dubai Auto Parts", "Meridian Consulting", "Sunrise Rentals"}
+	vasps = []string{"Dune Digital Assets FZE", "Creek Crypto Exchange", "Mirage VASP LLC"} // fictional licensed VASPs
 )
 
 func randIBAN(rnd *mathrand.Rand) string {
 	return fmt.Sprintf("AE%02d%03d%016d", rnd.Intn(90)+10, rnd.Intn(900)+100, rnd.Int63n(1e16))
+}
+
+// randWallet returns a synthetic EVM-style address in mixed case, as
+// customers paste them from exchange apps.
+func randWallet(rnd *mathrand.Rand) string {
+	const hexdigits = "0123456789abcdefABCDEF"
+	b := []byte("0x")
+	for i := 0; i < 40; i++ {
+		b = append(b, hexdigits[rnd.Intn(len(hexdigits))])
+	}
+	return string(b)
 }
 
 func randMobile(rnd *mathrand.Rand) string {
@@ -155,12 +167,16 @@ func (d *Demo) newTxn(rnd *mathrand.Rand) {
 	d.mu.Lock()
 	d.txnSeq++
 	seq := d.txnSeq
-	var flagged []string
+	var flagged, wallets []string
 	for iban := range d.flagged {
 		flagged = append(flagged, iban)
 	}
+	for w := range d.flaggedWallets {
+		wallets = append(wallets, w)
+	}
 	d.mu.Unlock()
 	sort.Strings(flagged)
+	sort.Strings(wallets)
 
 	tx := Txn{ID: fmt.Sprintf("MSQ-%06d", 418200+seq), At: time.Now().UTC(), Customer: customers[rnd.Intn(len(customers))],
 		Payee: payees[rnd.Intn(len(payees))], Currency: "AED", Status: "approved"}
@@ -174,6 +190,12 @@ func (d *Demo) newTxn(rnd *mathrand.Rand) {
 		tx.Amount = int64(2+rnd.Intn(40)) * 500
 	case r < 36 && len(flagged) > 0:
 		tx.Channel, tx.PayeeType, tx.PayeeID = "UAEFTS", "iban", flagged[rnd.Intn(len(flagged))]
+	case r >= 92:
+		tx.Channel, tx.PayeeType, tx.Payee = "UAEFTS", "wallet", vasps[rnd.Intn(len(vasps))]
+		tx.PayeeID = randWallet(rnd)
+		if len(wallets) > 0 && rnd.Intn(2) == 0 {
+			tx.PayeeID = wallets[rnd.Intn(len(wallets))]
+		}
 	default:
 		tx.Channel, tx.PayeeType, tx.PayeeID = "UAEFTS", "iban", randIBAN(rnd)
 	}
@@ -189,24 +211,33 @@ func (d *Demo) check(tx *Txn) {
 	var f []Factor
 	add := func(label string, pts int) { f = append(f, Factor{label, pts}) }
 	tx.Status, tx.Reason = "approved", "No active warning for this account"
-	if tx.PayeeType == "iban" {
-		if e, hit := d.B.Check(tx.PayeeID); hit {
-			k := kindInfo(e.Envelope.Kind)
-			tx.Status, tx.SignalID, tx.Issuer, tx.Kind = "held", e.Envelope.SignalID, issuerName(e.Envelope.Issuer), e.Envelope.Kind
-			tx.Reason = fmt.Sprintf("%s reported this account: %s (%s, %d related cases)", tx.Issuer, k.Label, strings.ReplaceAll(e.Payload.ReasonCode, "_", " "), e.Payload.CaseCount)
-			if e.Payload.EvidenceLevel == "issuer_analyst_verified" {
-				add(fmt.Sprintf("Payee reported by %s, confirmed by their analyst", tx.Issuer), 45)
-			} else {
-				add(fmt.Sprintf("Payee reported by %s, not yet confirmed", tx.Issuer), 25)
-			}
-			add(k.Label+" pattern", k.Severity)
-			c := e.Payload.CaseCount
-			if c > 4 {
-				c = 4
-			}
-			add(fmt.Sprintf("%d related cases at %s", e.Payload.CaseCount, tx.Issuer), 3*c)
+	hold := func(e *node.CacheEntry, what string) {
+		k := kindInfo(e.Envelope.Kind)
+		tx.Status, tx.SignalID, tx.Issuer, tx.Kind = "held", e.Envelope.SignalID, issuerName(e.Envelope.Issuer), e.Envelope.Kind
+		tx.Reason = fmt.Sprintf("%s reported this %s: %s (%s, %d related cases)", tx.Issuer, what, k.Label, strings.ReplaceAll(e.Payload.ReasonCode, "_", " "), e.Payload.CaseCount)
+		if e.Payload.EvidenceLevel == "issuer_analyst_verified" {
+			add(fmt.Sprintf("Payee reported by %s, confirmed by their analyst", tx.Issuer), 45)
+		} else {
+			add(fmt.Sprintf("Payee reported by %s, not yet confirmed", tx.Issuer), 25)
 		}
-	} else {
+		add(k.Label+" pattern", k.Severity)
+		c := e.Payload.CaseCount
+		if c > 4 {
+			c = 4
+		}
+		add(fmt.Sprintf("%d related cases at %s", e.Payload.CaseCount, tx.Issuer), 3*c)
+	}
+	switch tx.PayeeType {
+	case "iban":
+		if e, hit := d.B.Check(tx.PayeeID); hit {
+			hold(e, "account")
+		}
+	case "wallet":
+		tx.Reason = "No active warning for this wallet"
+		if e, hit := d.B.CheckWallet(tx.PayeeID); hit {
+			hold(e, "wallet")
+		}
+	default:
 		// Aani payments go to a mobile alias. Mashreq's node only matches IBANs,
 		// so alerts about mobile numbers cannot be checked.
 		tx.Reason = "No checkable warnings for this mobile number"
@@ -331,7 +362,7 @@ func (d *Demo) SearchTxns(q string) []Txn {
 }
 
 func maskPayee(t Txn) string {
-	if t.PayeeType == "mobile" && len(t.PayeeID) > 4 {
+	if (t.PayeeType == "mobile" || t.PayeeType == "wallet") && len(t.PayeeID) > 10 {
 		return t.PayeeID[:6] + " ••• " + t.PayeeID[len(t.PayeeID)-4:]
 	}
 	return mask(t.PayeeID)
@@ -395,6 +426,9 @@ func (d *Demo) indicatorFor(n *node.Node, k KindInfo, rnd *mathrand.Rand) (proto
 	case "account_hmac":
 		iban := randIBAN(rnd)
 		return n.Indicator(iban), iban
+	case "wallet_hmac":
+		w := randWallet(rnd)
+		return n.WalletIndicator(w), w
 	case "phone_hmac":
 		ind := n.Indicator(randMobile(rnd))
 		ind.Type = "phone_hmac"
