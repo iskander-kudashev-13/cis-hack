@@ -8,6 +8,7 @@ import { clock, money, until, useNow } from "../components/ui";
 
 type Run = (fn: () => Promise<State>) => Promise<void>;
 
+const jump = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 const PR_URL = "https://github.com/iskander-kudashev-13/cis-hack/pull/1";
 const REASON: Record<string, string> = {
   confirmed_bec_case: "Confirmed business email compromise",
@@ -17,7 +18,7 @@ const REASON: Record<string, string> = {
 };
 
 /**
- * Bank B's console. Bank B receives warnings from the network (events), checks
+ * Mashreq's console. Mashreq receives warnings from the network (events), checks
  * outgoing payments against them, and uses Devin when the network ships a new
  * signal type its connector does not understand yet.
  */
@@ -36,8 +37,8 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
     <div className="flex flex-col gap-4">
       <div className="flex items-end gap-3">
         <div>
-          <div className="text-[24px] font-medium tracking-tight">Bank B · payment protection</div>
-          <div className="text-[12.5px] text-text-3">Fraud desk console · warnings are decrypted only inside Bank B</div>
+          <div className="text-[24px] font-medium tracking-tight">Mashreq · payment protection</div>
+          <div className="text-[12.5px] text-text-3">Fraud desk console · warnings are decrypted only inside Mashreq · demo data</div>
         </div>
         <div className="flex-1" />
         <span className="font-mono text-[12px] text-text-3">{new Date(now).toLocaleTimeString("en-GB")}</span>
@@ -46,7 +47,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
       <div className="grid grid-cols-3 gap-4">
         <div className="relative overflow-hidden rounded-[28px] p-7 text-white" style={{ background: "#3b78f0" }}>
           <div className="absolute -right-16 -top-16 h-[220px] w-[220px] rounded-full border border-white/25" />
-          <div className="text-[13px] font-semibold uppercase tracking-[0.12em]">Bank B</div>
+          <div className="text-[13px] font-semibold uppercase tracking-[0.12em]">Mashreq</div>
           <div className="mt-1 text-[14px] text-white/70">Connected to Scam Weather</div>
           <div className="mt-6 text-[52px] font-medium leading-none tracking-tight tabular-nums">{active.length}</div>
           <div className="mt-1 text-[14px] text-white/80">active warnings protecting payments</div>
@@ -54,7 +55,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
             <span>●●●● {b.channel.status === "live" ? "network online" : "offline · local copy in use"}</span><div className="flex-1" /><span>cursor {b.channel.cursor}</span>
           </div>
         </div>
-        <Tile title="Events received" sub="warnings from other banks">
+        <Tile title="Events received" sub="warnings from other banks" to="sw-inbox">
           <div className="mt-5 flex items-center gap-3">
             <span className="text-[52px] font-medium leading-none tabular-nums">{events.length}</span>
             <Pill tone="pos">{active.length} active</Pill>
@@ -64,7 +65,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
             <Mini label="Withdrawn" value={events.filter((e) => e.state !== "active").length} color="#f5c84b" />
           </div>
         </Tile>
-        <Tile title="Payments checked" sub="before money leaves Bank B">
+        <Tile title="Payments checked" sub="before money leaves Mashreq" to="sw-payment">
           <div className="mt-5 flex items-center gap-3">
             <span className="text-[52px] font-medium leading-none tabular-nums">{b.decisions.length}</span>
             {held > 0 && <Pill tone="neg">{held} held</Pill>}
@@ -77,7 +78,7 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
       </div>
 
       <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4">
-        <section className="overflow-hidden rounded-[28px] bg-[#151517]">
+        <section id="sw-inbox" className="scroll-mt-4 overflow-hidden rounded-[28px] bg-[#151517]">
           <header className="flex items-center gap-2 px-6 pb-3 pt-5">
             <Bell size={15} className="text-text-3" />
             <h2 className="text-[16px] font-medium">Event inbox</h2>
@@ -92,14 +93,14 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
         </section>
 
         <div className="flex flex-col gap-4">
-          <section className="rounded-[28px] p-7 text-white" style={{ background: last?.decision === "REVIEW_REQUIRED" ? "#e8573a" : "#1f9254" }}>
+          <section id="sw-payment" className="scroll-mt-4 rounded-[28px] p-7 text-white" style={{ background: last?.decision === "REVIEW_REQUIRED" ? "#e8573a" : "#1f9254" }}>
             <div className="flex items-start">
               <div>
                 <div className="text-[17px] font-medium">Outgoing transfer check</div>
-                <div className="text-[13px] text-white/75">a Bank B customer sends money · checked before it leaves</div>
+                <div className="text-[13px] text-white/75">a Mashreq customer sends money · checked before it leaves</div>
               </div>
               <div className="flex-1" />
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15"><ArrowUpRight size={18} /></span>
+
             </div>
             {last ? (
               <>
@@ -126,11 +127,11 @@ export function BankView({ state, busy, run }: { state: State; busy: boolean; ru
 
           <section className="rounded-[28px] bg-[#151517] p-7">
             <div className="text-[17px] font-medium">Simulate another bank</div>
-            <div className="text-[13px] text-text-3">Bank A confirms a fraud on account AE07 •••• 3456</div>
+            <div className="text-[13px] text-text-3">Emirates NBD confirms a fraud on account AE07 •••• 3456</div>
             <div className="mt-5 flex gap-2">
               <button disabled={busy || aActive} onClick={() => run(api.publish)}
                 className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-40">
-                <Send size={14} /> Bank A sends warning
+                <Send size={14} /> Emirates NBD sends warning
               </button>
               <button disabled={busy || !aActive} onClick={() => run(api.retract)}
                 className="inline-flex items-center gap-1.5 rounded-full bg-[#232326] px-4 py-2 text-[13px] font-medium hover:bg-[#2c2c30] disabled:opacity-40">
@@ -170,7 +171,7 @@ function EventRow({ e, from, now }: { e: CacheRow; from: string; now: number }) 
           <KV k="Valid for" v={on ? until(e.expires_at, now) : "—"} />
           <KV k="Account match key" v={`${e.indicator.slice(0, 14)}…`} />
           <div className="col-span-2 mt-2 text-[12px] text-text-3">
-            What Bank B does: any outgoing payment to this account is held for an analyst. The account number itself never left Bank A in clear text.
+            What Mashreq does: any outgoing payment to this account is held for an analyst. The account number itself never left Emirates NBD in clear text.
           </div>
         </div>
       )}
@@ -232,7 +233,7 @@ function DevinEvent() {
   );
 }
 
-function Tile({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+function Tile({ title, sub, children, to }: { title: string; sub?: string; children: ReactNode; to?: string }) {
   return (
     <div className="rounded-[28px] bg-[#151517] p-7">
       <div className="flex items-start">
@@ -241,7 +242,10 @@ function Tile({ title, sub, children }: { title: string; sub?: string; children:
           {sub && <div className="text-[13px] text-text-3">{sub}</div>}
         </div>
         <div className="flex-1" />
-        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1f1f22] shadow-[0_6px_16px_rgba(0,0,0,0.5)]"><ArrowUpRight size={17} className="text-text-2" /></span>
+        <button onClick={() => to && jump(to)} title="Open details"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1f1f22] shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:bg-[#2a2a2e]">
+          <ArrowUpRight size={17} className="text-text-2" />
+        </button>
       </div>
       {children}
     </div>

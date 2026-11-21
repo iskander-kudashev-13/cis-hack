@@ -9,6 +9,9 @@ import { Badge, clock, short, until, useNow } from "../components/ui";
  * audit log. Accounts, amounts, reasons and payment checks never reach it.
  */
 
+const SHORT: Record<string, string> = { "Emirates NBD": "ENBD", Mashreq: "MSQ", FAB: "FAB", ADCB: "ADCB", "Dubai Islamic Bank": "DIB", ADIB: "ADIB", RAKBANK: "RAK", CBD: "CBD" };
+const short2 = (n: string) => SHORT[n] ?? n.slice(0, 4);
+const jump = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 const PALETTE = ["#4d86e8", "#1f9254", "#d9920a", "#a855f7", "#14b8a6", "#e85d75", "#8b93a7", "#f97316"];
 const MIN = 60_000;
 const WINDOW_MIN = 15;
@@ -23,7 +26,7 @@ export function OrchestratorView({ state }: { state: State }) {
   const prev = series.slice(0, half).reduce((x, y) => x + y, 0), cur = series.slice(half).reduce((x, y) => x + y, 0);
   const trend = prev ? Math.round(((cur - prev) / prev) * 100) : cur ? 100 : 0;
   const delivery = h.members.filter((m) => a.member[m.id]?.received).map((m) => ({
-    label: m.name.replace("Bank ", ""), pct: Math.round((a.member[m.id].acked / a.member[m.id].received) * 100),
+    label: short2(m.name), pct: Math.round((a.member[m.id].acked / a.member[m.id].received) * 100),
   }));
 
   return (
@@ -52,7 +55,7 @@ export function OrchestratorView({ state }: { state: State }) {
         </div>
 
         {/* Signals volume */}
-        <Tile title="Signals" sub={`last ${WINDOW_MIN} minutes`}>
+        <Tile title="Signals" sub={`last ${WINDOW_MIN} minutes`} to="sw-stream">
           <div className="mt-5 flex items-center gap-3">
             <span className="text-[52px] font-medium leading-none tracking-tight tabular-nums">{a.windowTotal}</span>
             <Pill tone={trend >= 0 ? "pos" : "neg"}>{trend >= 0 ? "+" : ""}{trend}%</Pill>
@@ -64,12 +67,12 @@ export function OrchestratorView({ state }: { state: State }) {
         </Tile>
 
         {/* Members */}
-        <Tile title="Members" sub="banks in the pilot">
+        <Tile title="Members" sub="banks in the network" to="sw-members">
           <div className="mt-5 flex -space-x-2.5">
             {h.members.slice(0, 6).map((m, i) => (
-              <span key={m.id} className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#151517] text-[14px] font-semibold text-black"
+              <span key={m.id} className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#151517] text-[11px] font-semibold text-black" title={m.name}
                 style={{ background: ["#9ad4a8", "#f5c84b", "#8fb3ff", "#f0a27a", "#c7b3ff", "#7fd6cf"][i % 6] }}>
-                {m.name.replace("Bank ", "")}
+                {short2(m.name)}
               </span>
             ))}
             {h.members.length > 6 && <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#151517] bg-[#5fbf7b] text-[14px] font-semibold text-black">+{h.members.length - 6}</span>}
@@ -82,7 +85,7 @@ export function OrchestratorView({ state }: { state: State }) {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Tile title="Delivery by bank" sub="confirmed / received">
+        <Tile title="Delivery by bank" sub="confirmed / received" to="sw-members">
           <HatchBars rows={delivery} />
         </Tile>
 
@@ -93,7 +96,7 @@ export function OrchestratorView({ state }: { state: State }) {
               <div className="text-[13px] text-white/75">per minute, all banks</div>
             </div>
             <div className="flex-1" />
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15"><ArrowUpRight size={18} /></span>
+            <button onClick={() => jump("sw-stream")} title="Open message stream" className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/30"><ArrowUpRight size={18} /></button>
           </div>
           <SmoothLine buckets={a.perMinute} />
         </div>
@@ -107,7 +110,7 @@ export function OrchestratorView({ state }: { state: State }) {
       </div>
 
       <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-4">
-        <Card title="Member health" icon={<Server size={14} />} pad={false}>
+        <Card id="sw-members" title="Member health" icon={<Server size={14} />} pad={false}>
           <table className="w-full text-[12.5px]">
             <thead><tr className="text-left text-[11px] uppercase tracking-wide text-text-3">
               <Th>Bank</Th><Th>Status</Th><Th>Last sync</Th><Th right>Sent</Th><Th right>Received</Th><Th right>Avg latency</Th>
@@ -136,7 +139,7 @@ export function OrchestratorView({ state }: { state: State }) {
       </div>
 
       <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-4">
-        <Card title="Live message stream" icon={<Activity size={14} />} pad={false}
+        <Card id="sw-stream" title="Live message stream" icon={<Activity size={14} />} pad={false}
           right={<span className="flex items-center gap-1 text-[11px] text-text-3"><Lock size={11} /> click a row for routing details</span>}>
           <div className="max-h-[420px] overflow-auto">
             {[...h.stored].reverse().slice(0, 25).map((s) => <StreamRow key={`${s.envelope.signal_id}-${s.envelope.revision}`} s={s} state={state} names={a.names} />)}
@@ -160,7 +163,7 @@ export function OrchestratorView({ state }: { state: State }) {
   );
 }
 
-function Tile({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+function Tile({ title, sub, children, to }: { title: string; sub?: string; children: ReactNode; to?: string }) {
   return (
     <div className="rounded-[28px] bg-[#151517] p-7">
       <div className="flex items-start">
@@ -169,7 +172,10 @@ function Tile({ title, sub, children }: { title: string; sub?: string; children:
           {sub && <div className="text-[13px] text-text-3">{sub}</div>}
         </div>
         <div className="flex-1" />
-        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1f1f22] shadow-[0_6px_16px_rgba(0,0,0,0.5)]"><ArrowUpRight size={17} className="text-text-2" /></span>
+        <button onClick={() => to && jump(to)} title="Open details"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1f1f22] shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:bg-[#2a2a2e] hover:text-text">
+          <ArrowUpRight size={17} className="text-text-2" />
+        </button>
       </div>
       {children}
     </div>
@@ -223,7 +229,8 @@ function HatchBars({ rows }: { rows: { label: string; pct: number }[] }) {
 }
 
 function SmoothLine({ buckets }: { buckets: { t: number; up: number; down: number }[] }) {
-  const W = 760, H = 230, top = 40, bottom = 30;
+  const [hover, setHover] = useState<number | null>(null);
+  const W = 760, H = 230, top = 48, bottom = 30;
   const vals = buckets.map((b) => b.up + b.down);
   const max = Math.max(4, ...vals);
   const x = (i: number) => (i / Math.max(1, vals.length - 1)) * W;
@@ -234,21 +241,29 @@ function SmoothLine({ buckets }: { buckets: { t: number; up: number; down: numbe
     d += ` C ${cx} ${y(vals[i - 1])}, ${cx} ${y(vals[i])}, ${x(i)} ${y(vals[i])}`;
   }
   const peak = vals.reduce((bi, v, i) => (v > vals[bi] ? i : bi), 0);
+  const sel = hover ?? peak;
+  const b = buckets[sel];
+  const tx = Math.min(W - 70, Math.max(70, x(sel)));
+  const time = (t: number) => new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 h-[230px] w-full overflow-visible">
-      {vals.map((_, i) => <line key={i} x1={x(i)} x2={x(i)} y1={top} y2={H - bottom} stroke="rgba(255,255,255,0.12)" />)}
+    <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 h-[230px] w-full cursor-crosshair overflow-visible" onMouseLeave={() => setHover(null)}>
+      {vals.map((_, i) => <line key={i} x1={x(i)} x2={x(i)} y1={top} y2={H - bottom} stroke={i === sel ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.12)"} />)}
       <line x1={0} x2={W} y1={H - bottom} y2={H - bottom} stroke="rgba(255,255,255,0.35)" />
-      <rect x={x(peak) - 14} y={y(vals[peak])} width={28} height={H - bottom - y(vals[peak])} rx={14} fill="rgba(255,255,255,0.35)" />
+      <rect x={x(sel) - 14} y={y(vals[sel])} width={28} height={Math.max(0, H - bottom - y(vals[sel]))} rx={14} fill="rgba(255,255,255,0.35)" />
       <path d={d} fill="none" stroke="white" strokeWidth={2.5} />
-      <circle cx={x(peak)} cy={y(vals[peak])} r={4} fill="white" />
-      <g transform={`translate(${Math.min(W - 30, Math.max(30, x(peak)))}, ${y(vals[peak]) - 26})`}>
-        <rect x={-28} y={-15} width={56} height={30} rx={15} fill="white" />
-        <text textAnchor="middle" y={5} fontSize="14" fontWeight="600" fill="#1a1a1a">{vals[peak]}</text>
-      </g>
-      {buckets.map((b, i) => i % 2 === 0 && (
-        <text key={b.t} x={x(i)} y={H - 8} fontSize="12" textAnchor="middle" fill="rgba(255,255,255,0.85)">
-          {new Date(b.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-        </text>
+      <circle cx={x(sel)} cy={y(vals[sel])} r={5} fill="white" />
+      {b && (
+        <g transform={`translate(${tx}, ${Math.max(22, y(vals[sel]) - 32)})`}>
+          <rect x={-66} y={-20} width={132} height={40} rx={20} fill="white" />
+          <text textAnchor="middle" y={-3} fontSize="13" fontWeight="700" fill="#1a1a1a">{vals[sel]} signals · {time(b.t)}</text>
+          <text textAnchor="middle" y={12} fontSize="11" fill="#555">{b.up} warnings · {b.down} withdrawals</text>
+        </g>
+      )}
+      {buckets.map((bk, i) => i % 2 === 0 && (
+        <text key={bk.t} x={x(i)} y={H - 8} fontSize="12" textAnchor="middle" fill="rgba(255,255,255,0.85)">{time(bk.t)}</text>
+      ))}
+      {vals.map((_, i) => (
+        <rect key={`h${i}`} x={x(i) - W / vals.length / 2} y={0} width={W / vals.length} height={H} fill="transparent" onMouseEnter={() => setHover(i)} />
       ))}
     </svg>
   );
@@ -324,9 +339,9 @@ function ago(iso: string | undefined, now: number) {
 
 // ---------- building blocks ----------
 
-function Card({ title, icon, right, children, pad = true }: { title: string; icon: ReactNode; right?: ReactNode; children: ReactNode; pad?: boolean }) {
+function Card({ title, icon, right, children, pad = true, id }: { title: string; icon: ReactNode; right?: ReactNode; children: ReactNode; pad?: boolean; id?: string }) {
   return (
-    <section className="flex min-w-0 flex-col overflow-hidden rounded-[28px] bg-[#151517]">
+    <section id={id} className="scroll-mt-4 flex min-w-0 flex-col overflow-hidden rounded-[28px] bg-[#151517]">
       <header className="flex items-center gap-2 px-6 pb-3 pt-5">
         <span className="text-text-3">{icon}</span>
         <h2 className="text-[16px] font-medium">{title}</h2>

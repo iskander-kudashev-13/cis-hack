@@ -83,10 +83,10 @@ func New(hubURL string) (*Demo, error) {
 	d := &Demo{Hub: hub.New(), subs: map[chan []byte]bool{}}
 	gk := node.GroupKey(Audience)
 	var err error
-	if d.A, err = node.New("bank-a", "Bank A", "token-bank-a", Audience, gk, hubURL, d.Log); err != nil {
+	if d.A, err = node.New("bank-a", "Emirates NBD", "token-bank-a", Audience, gk, hubURL, d.Log); err != nil {
 		return nil, err
 	}
-	if d.B, err = node.New("bank-b", "Bank B", "token-bank-b", Audience, gk, hubURL, d.Log); err != nil {
+	if d.B, err = node.New("bank-b", "Mashreq", "token-bank-b", Audience, gk, hubURL, d.Log); err != nil {
 		return nil, err
 	}
 	if err := d.Hub.Register(d.A.Member(), d.A.Token, Audience); err != nil {
@@ -136,11 +136,11 @@ var networkPeers = []struct {
 	id, name string
 	every    time.Duration
 }{
-	{"bank-d", "Bank D", 1200 * time.Millisecond},
-	{"bank-e", "Bank E", 1700 * time.Millisecond},
-	{"bank-f", "Bank F", 2300 * time.Millisecond},
-	{"bank-g", "Bank G", 2900 * time.Millisecond},
-	{"bank-h", "Bank H", 3600 * time.Millisecond},
+	{"bank-d", "FAB", 1200 * time.Millisecond},
+	{"bank-e", "ADCB", 1700 * time.Millisecond},
+	{"bank-f", "Dubai Islamic Bank", 2300 * time.Millisecond},
+	{"bank-g", "ADIB", 2900 * time.Millisecond},
+	{"bank-h", "RAKBANK", 3600 * time.Millisecond},
 }
 
 // RunNodes starts every bank's sync loop.
@@ -314,11 +314,12 @@ func (d *Demo) Evaluate(paymentID string) (Decision, error) {
 }
 
 func issuerName(id string) string {
-	switch id {
-	case "bank-a":
-		return "Bank A"
-	case "bank-b":
-		return "Bank B"
+	names := map[string]string{"bank-a": "Emirates NBD", "bank-b": "Mashreq", "bank-c": "CBD"}
+	for _, p := range networkPeers {
+		names[p.id] = p.name
+	}
+	if n, ok := names[id]; ok {
+		return n
 	}
 	return id
 }
@@ -437,8 +438,8 @@ func (d *Demo) State() map[string]any {
 	return map[string]any{
 		"now":      now,
 		"timeline": timeline,
-		"bank_a":   map[string]any{"id": "bank-a", "name": "Bank A · victim's bank", "cases": cases, "signal": signal},
-		"bank_b": map[string]any{"id": "bank-b", "name": "Bank B", "channel": d.B.Channel(), "cache": cache,
+		"bank_a":   map[string]any{"id": "bank-a", "name": "Emirates NBD", "cases": cases, "signal": signal},
+		"bank_b": map[string]any{"id": "bank-b", "name": "Mashreq", "channel": d.B.Channel(), "cache": cache,
 			"payments": pays, "decisions": decisions},
 		"hub": map[string]any{"paused": snap.Paused, "chain_ok": snap.ChainOK, "members": nonNil(snap.Members), "stored": stored,
 			"acks": acks, "journal": journal, "last_seen": snap.LastSeen},

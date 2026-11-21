@@ -30,7 +30,7 @@ export function Landing({ onEnter }: { onEnter: (s: Session) => void }) {
         <nav className="relative mx-auto flex max-w-[1200px] items-center gap-3 px-8 py-6">
           <Logo />
           <div className="flex-1" />
-          <span className="hidden text-[11px] uppercase tracking-[0.12em] text-white/50 md:block">UAE BEC pilot · 7 banks live</span>
+          <span className="hidden text-[11px] uppercase tracking-[0.12em] text-white/50 md:block">Demo network · 7 UAE banks · synthetic data</span>
           <button onClick={() => setAuth("signin")} className="ml-6 text-[13px] text-white/80 hover:text-white">Sign in</button>
           <button onClick={() => setAuth("register")} className="rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90">Request access</button>
         </nav>
@@ -92,7 +92,7 @@ export function Landing({ onEnter }: { onEnter: (s: Session) => void }) {
               <div className="text-[12px] text-white/60">Delivered to 6 of 6 banks · 0.9 s</div>
             </div>
             <div className="absolute left-[140px] top-[170px] w-[330px] -rotate-[4deg] rounded-2xl p-6 shadow-2xl" style={{ background: PASTEL }}>
-              <div className="flex text-[12px] text-black/60"><span>Bank B · payment check</span><div className="flex-1" /><Logo small dark /></div>
+              <div className="flex text-[12px] text-black/60"><span>Mashreq · payment check</span><div className="flex-1" /><Logo small dark /></div>
               <div className="mt-10 text-[30px] font-light tracking-tight">AED 450,000</div>
               <div className="text-[12px] font-medium text-[#b42318]">Held for review · reported mule account</div>
             </div>
@@ -150,7 +150,7 @@ function Logo({ small, big, dark }: { small?: boolean; big?: boolean; dark?: boo
 function SlideFoot({ dark }: { dark?: boolean }) {
   return (
     <div className={`relative mx-auto flex max-w-[1200px] items-center px-8 pb-6 text-[11px] ${dark ? "text-white/40" : "text-black/50"}`}>
-      <Logo small dark={!dark} /><div className="flex-1" /><span>CIS Sprint × Devin · Dubai 2026</span><div className="flex-1" /><span>synthetic demo data</span>
+      <Logo small dark={!dark} /><div className="flex-1" /><span>CIS Sprint × Devin · Dubai 2026</span><div className="flex-1" /><span>demo with synthetic data · bank names for illustration, no affiliation</span>
     </div>
   );
 }
@@ -175,7 +175,7 @@ function Why({ icon, title, children }: { icon: ReactNode; title: string; childr
 
 function AuthModal({ mode, setMode, onEnter }: { mode: "signin" | "register"; setMode: (m: null | "signin" | "register") => void; onEnter: (s: Session) => void }) {
   const [role, setRole] = useState<Session["role"]>("bank");
-  const [org, setOrg] = useState("Bank B");
+  const [org, setOrg] = useState("Mashreq");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
@@ -213,7 +213,7 @@ function AuthModal({ mode, setMode, onEnter }: { mode: "signin" | "register"; se
               {role === "bank" && (
                 <Field label="Institution">
                   <select value={org} onChange={(e) => setOrg(e.target.value)} className={INPUT}>
-                    {["Bank A", "Bank B", "Bank D", "Bank E", "Bank F", "Bank G", "Bank H"].map((b) => <option key={b}>{b}</option>)}
+                    {["Emirates NBD", "Mashreq", "FAB", "ADCB", "Dubai Islamic Bank", "ADIB", "RAKBANK"].map((b) => <option key={b}>{b}</option>)}
                   </select>
                 </Field>
               )}

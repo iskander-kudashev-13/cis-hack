@@ -16,23 +16,23 @@ const SESSION_URL = "https://app.devin.ai/sessions/28d843de3a734885a3d5e67983ad2
 const PR_URL = "https://github.com/iskander-kudashev-13/cis-hack/pull/1";
 
 const STEPS = [
-  { title: "Bank C sends its format", sub: "A sample pacs.008 payment and the expected result", icon: <FileInput size={16} /> },
+  { title: "CBD sends its format", sub: "A sample pacs.008 payment and the expected result", icon: <FileInput size={16} /> },
   { title: "Scam Weather starts Devin", sub: "One API call with the task", icon: <Bot size={16} /> },
   { title: "Devin writes the connector", sub: "bankc.go and 4 tests", icon: <FileCode2 size={16} /> },
   { title: "Devin runs the checks", sub: "go test ./..., all pass", icon: <ShieldCheck size={16} /> },
   { title: "Draft PR", sub: "PR #1, +106 lines", icon: <GitPullRequest size={16} /> },
-  { title: "Bank engineer approves", sub: "A human merges; Bank C goes live", icon: <UserCheck size={16} /> },
+  { title: "Bank engineer approves", sub: "A human merges; CBD goes live", icon: <UserCheck size={16} /> },
 ];
 const REACHED = 5; // PR #1 is open as a draft; the merge is a human's step
 
 const WORK_LOG: { what: string; detail: string }[] = [
-  { what: "Read the task and the repo", detail: "PaymentAdapter interface, the Bank B adapter as an example, fixtures in testdata/bank-c" },
+  { what: "Read the task and the repo", detail: "PaymentAdapter interface, the Mashreq adapter as an example, fixtures in testdata/bank-c" },
   { what: "Created branch devin/bank-c-adapter", detail: "From main; touched only the adapters package, as instructed" },
   { what: "Wrote bankc.go (52 lines)", detail: "Parses ISO 20022 pacs.008 XML into the shared payment shape" },
-  { what: "Registered Bank C (+1 line)", detail: "Register(BankC{}) in adapters.go, next to Bank B" },
+  { what: "Registered CBD (+1 line)", detail: "Register(BankC{}) in adapters.go, next to Mashreq" },
   { what: "Wrote bankc_test.go (53 lines)", detail: "Missing IBAN, missing amount, IBAN with spaces, amount without decimals" },
   { what: "Ran go test ./...", detail: "TestConformance/bank-c went from SKIP to PASS; nothing else broke" },
-  { what: "Opened draft PR #1", detail: "\"Onboard Bank C: pacs.008 adapter\" with the test output in the description" },
+  { what: "Opened draft PR #1", detail: "\"Onboard CBD: pacs.008 adapter\" with the test output in the description" },
 ];
 
 const MAPPING: [string, string, string][] = [
@@ -93,7 +93,7 @@ export function OnboardingPage() {
       <Panel title="Devin connects a new bank to the network" icon={<Bot size={15} />} bodyClass="px-6 pb-6">
         <div className="max-w-[760px] space-y-1.5 text-[13.5px] text-text-2">
           <p>Every bank stores payments in its own format. To join Scam Weather, a bank needs a connector that turns its payments into our shape so they can be checked against warnings.</p>
-          <p><b className="text-text">Devin writes that connector.</b> Below is a real run: Bank C uses ISO 20022 pacs.008 XML. Devin got the task through the API, wrote the code and tests, ran them and opened a draft PR. A Bank C engineer has the final say.</p>
+          <p><b className="text-text">Devin writes that connector.</b> Below is a real run: CBD uses ISO 20022 pacs.008 XML. Devin got the task through the API, wrote the code and tests, ran them and opened a draft PR. A CBD engineer has the final say.</p>
         </div>
 
         <ol className="mt-5 grid grid-cols-6 gap-2">
@@ -139,8 +139,8 @@ export function OnboardingPage() {
       </Panel>
 
       <div className="grid grid-cols-2 gap-3">
-        <Section n={1} title="What Bank C gave" icon={<FileInput size={15} />}>
-          <div className="mb-1.5 text-[12px] text-text-2">A sample payment in Bank C's format (pacs.008 XML):</div>
+        <Section n={1} title="What CBD gave" icon={<FileInput size={15} />}>
+          <div className="mb-1.5 text-[12px] text-text-2">A sample payment in CBD's format (pacs.008 XML):</div>
           <Code text={sampleXml.trim()} />
           <div className="mb-1.5 mt-3 text-[12px] text-text-2">And what our system should get out of it:</div>
           <Code text={expectedJson.trim()} />
@@ -154,9 +154,9 @@ export function OnboardingPage() {
             {[
               "Create branch devin/bank-c-adapter",
               "Write a BankC adapter for pacs.008 using the existing interface",
-              "Register it next to Bank B",
+              "Register it next to Mashreq",
               "Add tests: missing IBAN, missing amount, spaces in IBAN, no decimals",
-              "Run go test ./...; the Bank C conformance test must pass",
+              "Run go test ./...; the CBD conformance test must pass",
               "Open a draft PR with the test output",
               "Do not touch the protocol, hub or node code; use only test data",
             ].map((t) => <li key={t} className="flex gap-2"><Check size={14} className="mt-0.5 flex-none text-pos" />{t}</li>)}
@@ -179,10 +179,10 @@ export function OnboardingPage() {
 
       <Section n={4} title="The code Devin wrote" icon={<FileCode2 size={15} />}
         right={<Badge tone="good">+106 −0 · 3 files</Badge>}>
-        <div className="mb-3 text-[12px] text-text-2">How the connector reads a Bank C payment:</div>
+        <div className="mb-3 text-[12px] text-text-2">How the connector reads a CBD payment:</div>
         <table className="mb-4 w-full text-[12px]">
           <thead><tr className="text-left text-text-3">
-            <th className="pb-1.5 font-medium">Field in Bank C's XML</th><th className="pb-1.5 font-medium">Field in Scam Weather</th><th className="pb-1.5 font-medium">From the sample</th>
+            <th className="pb-1.5 font-medium">Field in CBD's XML</th><th className="pb-1.5 font-medium">Field in Scam Weather</th><th className="pb-1.5 font-medium">From the sample</th>
           </tr></thead>
           <tbody>
             {MAPPING.map(([a, b, c]) => (
@@ -221,7 +221,7 @@ export function OnboardingPage() {
         <Section n={6} title="What Devin cannot do" icon={<Lock size={15} />}>
           <ul className="space-y-2 text-[12.5px] text-text-2">
             {[
-              "Merge its own PR. A Bank C engineer reviews and merges.",
+              "Merge its own PR. A CBD engineer reviews and merges.",
               "Touch production or real customer data. It works on synthetic test files.",
               "Change the protocol, encryption or Hub. The task limits it to the adapters package.",
               "Take part in payment checks. At run time only the bank's own code decides.",

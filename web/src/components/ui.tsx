@@ -83,8 +83,8 @@ export function Badge({ tone, children, dot, pulse, className = "" }: {
 }
 
 const ACTOR: Record<Actor, { label: string; tone: Tone | "muted" }> = {
-  "bank-a": { label: "Bank A", tone: "info" },
-  "bank-b": { label: "Bank B", tone: "warn" },
+  "bank-a": { label: "ENBD", tone: "info" },
+  "bank-b": { label: "Mashreq", tone: "warn" },
   hub: { label: "Hub", tone: "muted" },
   devin: { label: "Devin", tone: "good" },
   system: { label: "System", tone: "muted" },
