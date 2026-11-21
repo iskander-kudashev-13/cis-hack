@@ -75,10 +75,14 @@ func (c *Cache) Apply(env protocol.Envelope, p protocol.Payload, now time.Time) 
 	return protocol.AckApplied
 }
 
-// Match returns the active entry whose indicator equals the given one.
+// Match returns the active entry whose indicator has the same type and value.
+// An account_hmac never matches a phone_hmac, and an empty indicator never matches.
 func (c *Cache) Match(ind protocol.Indicator, now time.Time) (*CacheEntry, bool) {
+	if ind.Type == "" || ind.Value == "" {
+		return nil, false
+	}
 	for _, e := range c.entries {
-		if e.State(now) == StateActive && e.Payload.Indicator == ind {
+		if e.State(now) == StateActive && e.Payload.Indicator.Type == ind.Type && e.Payload.Indicator.Value == ind.Value {
 			return e, true
 		}
 	}
@@ -159,6 +163,11 @@ func (n *Node) Member() protocol.Member {
 // Indicator hashes an IBAN with the group key. The IBAN never leaves the bank.
 func (n *Node) Indicator(iban string) protocol.Indicator {
 	return protocol.AccountIndicator(n.GroupKey, iban)
+}
+
+// PhoneIndicator hashes a UAE mobile number (Aani alias) with the group key.
+func (n *Node) PhoneIndicator(mobile string) protocol.Indicator {
+	return protocol.PhoneIndicator(n.GroupKey, mobile)
 }
 
 func (n *Node) refreshDirectory() error {
@@ -334,9 +343,19 @@ func (n *Node) Run(interval time.Duration, stop <-chan struct{}) {
 
 // Check matches a beneficiary IBAN against the local cache. No network call.
 func (n *Node) Check(iban string) (*CacheEntry, bool) {
+	return n.CheckIndicator(n.Indicator(iban))
+}
+
+// CheckMobile matches a beneficiary Aani mobile number against the local cache. No network call.
+func (n *Node) CheckMobile(mobile string) (*CacheEntry, bool) {
+	return n.CheckIndicator(n.PhoneIndicator(mobile))
+}
+
+// CheckIndicator matches an already computed indicator of any supported type.
+func (n *Node) CheckIndicator(ind protocol.Indicator) (*CacheEntry, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.cache.Match(n.Indicator(iban), n.now())
+	return n.cache.Match(ind, n.now())
 }
 
 type Channel struct {

@@ -63,8 +63,29 @@ func TestToMinor(t *testing.T) {
 	}
 }
 
-func TestBankBRejectsMissingIBAN(t *testing.T) {
+func TestBankBRejectsMissingPayee(t *testing.T) {
 	if _, err := (BankB{}).ParsePayment([]byte(`{"txn_ref":"x","amt":{"value":"1","ccy":"AED"}}`)); err == nil {
 		t.Error("expected error")
+	}
+}
+
+func TestBankBAaniMobile(t *testing.T) {
+	cases := map[string]string{
+		`{"txn_ref":"a1","creditor":{"proxy":{"mobile":"+971 52 765 4321"}},"amt":{"value":"100","ccy":"AED"}}`: "+971527654321",
+		`{"txn_ref":"a2","creditor":{"proxy":{"mobile":"00971527654321"}},"amt":{"value":"100","ccy":"AED"}}`:   "+971527654321",
+		`{"txn_ref":"a3","creditor":{"proxy":{"mobile":"0527654321"}},"amt":{"value":"100","ccy":"AED"}}`:       "+971527654321",
+	}
+	for raw, want := range cases {
+		got, err := (BankB{}).ParsePayment([]byte(raw))
+		if err != nil {
+			t.Fatalf("%s: %v", raw, err)
+		}
+		if got.BeneficiaryMobile != want || got.BeneficiaryIBAN != "" {
+			t.Errorf("%s: got %+v, want mobile %s", raw, got, want)
+		}
+	}
+	bad := `{"txn_ref":"a4","creditor":{"proxy":{"mobile":"042345678"}},"amt":{"value":"100","ccy":"AED"}}`
+	if _, err := (BankB{}).ParsePayment([]byte(bad)); err == nil {
+		t.Error("expected error for a landline proxy")
 	}
 }

@@ -1,0 +1,1 @@
+{"txn_ref":"pay-aani","creditor":{"proxy":{"type":"mobile","mobile":"050 123 4567"},"name":"Safe Account Desk"},"amt":{"value":"9500.00","ccy":"aed"},"channel":"aani"}
