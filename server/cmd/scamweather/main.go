@@ -42,8 +42,7 @@ func main() {
 	stop := make(chan struct{})
 	go func() {
 		time.Sleep(500 * time.Millisecond)
-		go d.A.Run(time.Second, stop)
-		go d.B.Run(time.Second, stop)
+		d.RunNodes(stop)
 		go d.Watch(stop)
 	}()
 

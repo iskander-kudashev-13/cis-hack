@@ -1,0 +1,12 @@
+diff --git a/server/internal/adapters/adapters.go b/server/internal/adapters/adapters.go
+index a59570f..833a7ab 100644
+--- a/server/internal/adapters/adapters.go
++++ b/server/internal/adapters/adapters.go
+@@ -44,6 +44,7 @@ func Register(a PaymentAdapter) { Registry[a.BankID()] = a }
+ 
+ func init() {
+ 	Register(BankB{})
++	Register(BankC{})
+ }
+ 
+ // ---- Bank A: fraud case export (JSON) ----

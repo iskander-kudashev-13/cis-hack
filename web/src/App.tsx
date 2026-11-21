@@ -7,12 +7,13 @@ import { LiveDemo } from "./pages/LiveDemo";
 import { SignalsPage } from "./pages/Signals";
 import { HubPage } from "./pages/HubView";
 import { OnboardingPage } from "./pages/Onboarding";
+import { OrchestratorView } from "./pages/Orchestrator";
 
 const TITLES: Record<Page, string> = {
   live: "Live demo · BEC mule signal end to end",
   signals: "Signals · hub journal and acknowledgements",
-  hub: "Hub view · what the blind relay stores",
-  onboarding: "Onboarding · new member banks",
+  hub: "Hub · messages between banks and payment checks",
+  onboarding: "Devin · how a new bank is connected",
 };
 
 function initialPage(): Page {
@@ -22,6 +23,7 @@ function initialPage(): Page {
 
 export function App() {
   const [page, setPage] = useState<Page>(initialPage);
+  const [role, setRole] = useState<"bank" | "orchestrator">("bank");
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("sw-sidebar") === "1"; } catch { return false; } });
   const [state, setState] = useState<State | null>(null);
   const [live, setLive] = useState<LiveMode>("connecting");
@@ -72,7 +74,26 @@ export function App() {
           {!state ? (
             <div className="flex h-full items-center justify-center text-text-3">Connecting to console API…</div>
           ) : page === "live" ? (
-            <LiveDemo state={state} busy={busy} run={run} />
+            <div className="flex h-full flex-col gap-3">
+              <div className="flex flex-none items-center gap-3">
+                <div className="inline-flex rounded-lg border border-border-2 bg-surface p-0.5">
+                  {([["bank", "Bank client view"], ["orchestrator", "Orchestrator view"]] as const).map(([id, label]) => (
+                    <button key={id} onClick={() => setRole(id)}
+                      className={`rounded-md px-3 py-1.5 text-[12.5px] font-medium ${role === id ? "bg-accent text-white" : "text-text-2 hover:text-text"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[12px] text-text-3">
+                  {role === "bank"
+                    ? "What a member bank sees: Bank A reports a mule account, Bank B checks an outgoing transfer."
+                    : `What the network operator sees: every signal moving through ${state.hub.members.length} banks.`}
+                </span>
+              </div>
+              <div className="min-h-0 flex-1">
+                {role === "bank" ? <LiveDemo state={state} busy={busy} run={run} /> : <OrchestratorView state={state} />}
+              </div>
+            </div>
           ) : page === "signals" ? (
             <SignalsPage state={state} />
           ) : page === "hub" ? (

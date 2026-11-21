@@ -64,6 +64,7 @@ type Decision struct {
 type Demo struct {
 	Hub       *hub.Hub
 	A, B      *node.Node
+	Peers     []*node.Node // the rest of the network: real nodes that sync, decrypt and ack
 	mu        sync.Mutex
 	cases     []adapters.Case
 	pays      map[string]adapters.Payment
@@ -91,6 +92,21 @@ func New(hubURL string) (*Demo, error) {
 	if err := d.Hub.Register(d.B.Member(), d.B.Token, Audience); err != nil {
 		return nil, err
 	}
+	quiet := func(actor, text, tone string) { // peers only surface problems in the timeline
+		if tone == "bad" {
+			d.Log(actor, text, tone)
+		}
+	}
+	for _, p := range networkPeers {
+		n, err := node.New(p.id, p.name, "token-"+p.id, Audience, gk, hubURL, quiet)
+		if err != nil {
+			return nil, err
+		}
+		if err := d.Hub.Register(n.Member(), n.Token, Audience); err != nil {
+			return nil, err
+		}
+		d.Peers = append(d.Peers, n)
+	}
 	d.Hub.OnChange(d.broadcast)
 	for _, raw := range bankACases {
 		c, err := adapters.ParseBankACase([]byte(raw))
@@ -107,8 +123,30 @@ func New(hubURL string) (*Demo, error) {
 		}
 		d.pays[pay.PaymentID] = pay
 	}
-	d.Log("system", "Stand ready: Bank A, Bank B and the hub are online", "info")
+	d.Log("system", fmt.Sprintf("Stand ready: %d banks and the hub are online", 2+len(d.Peers)), "info")
 	return d, nil
+}
+
+// networkPeers are the other members of the pilot network. Each one polls the hub
+// at its own pace, so confirmations arrive at different times, as they would live.
+var networkPeers = []struct {
+	id, name string
+	every    time.Duration
+}{
+	{"bank-d", "Bank D", 1200 * time.Millisecond},
+	{"bank-e", "Bank E", 1700 * time.Millisecond},
+	{"bank-f", "Bank F", 2300 * time.Millisecond},
+	{"bank-g", "Bank G", 2900 * time.Millisecond},
+	{"bank-h", "Bank H", 3600 * time.Millisecond},
+}
+
+// RunNodes starts every bank's sync loop.
+func (d *Demo) RunNodes(stop <-chan struct{}) {
+	go d.A.Run(time.Second, stop)
+	go d.B.Run(time.Second, stop)
+	for i, p := range d.Peers {
+		go p.Run(networkPeers[i].every, stop)
+	}
 }
 
 func (d *Demo) Log(actor, text, tone string) {
@@ -125,6 +163,9 @@ func (d *Demo) Reset() {
 	d.Hub.Reset()
 	d.A.Reset()
 	d.B.Reset()
+	for _, p := range d.Peers {
+		p.Reset()
+	}
 	d.mu.Lock()
 	d.timeline = nil
 	d.decisions = nil
@@ -132,7 +173,7 @@ func (d *Demo) Reset() {
 	d.attempt = 0
 	d.wasStale = false
 	d.mu.Unlock()
-	d.Log("system", "Reset: hub, Bank A and Bank B cleared", "info")
+	d.Log("system", "Reset: hub and all banks cleared", "info")
 }
 
 func (d *Demo) PublishSignal() error {
@@ -332,7 +373,7 @@ func (d *Demo) State() map[string]any {
 		"now":      now,
 		"timeline": timeline,
 		"bank_a":   map[string]any{"id": "bank-a", "name": "Bank A · victim's bank", "cases": cases, "signal": signal},
-		"bank_b": map[string]any{"id": "bank-b", "name": "Bank B · payment check", "channel": d.B.Channel(), "cache": cache,
+		"bank_b": map[string]any{"id": "bank-b", "name": "Bank B", "channel": d.B.Channel(), "cache": cache,
 			"payments": pays, "decisions": decisions},
 		"hub": map[string]any{"paused": snap.Paused, "chain_ok": snap.ChainOK, "members": nonNil(snap.Members), "stored": nonNilS(snap.Stored),
 			"acks": acks, "journal": snap.Journal},

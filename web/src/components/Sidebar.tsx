@@ -6,8 +6,8 @@ export type Page = "live" | "signals" | "hub" | "onboarding";
 const NAV: { id: Page; label: string; icon: ReactNode }[] = [
   { id: "live", label: "Live demo", icon: <MonitorPlay size={16} /> },
   { id: "signals", label: "Signals", icon: <Radio size={16} /> },
-  { id: "hub", label: "Hub view", icon: <Layers size={16} /> },
-  { id: "onboarding", label: "Onboarding", icon: <UserPlus size={16} /> },
+  { id: "hub", label: "Hub", icon: <Layers size={16} /> },
+  { id: "onboarding", label: "Devin onboarding", icon: <UserPlus size={16} /> },
 ];
 
 export function Sidebar({ page, onPage, collapsed, onToggle }: {

@@ -292,7 +292,7 @@ type Snapshot struct {
 func (h *Hub) Snapshot() Snapshot {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	s := Snapshot{Paused: h.paused, Stored: append([]protocol.SignedSignal{}, h.stored...), Journal: append([]JournalEntry{}, h.journal...), ChainOK: true}
+	s := Snapshot{Paused: h.paused, Stored: append([]protocol.SignedSignal{}, h.stored...), Journal: append([]JournalEntry{}, h.journal...), Acks: []ackRecord{}, ChainOK: true}
 	for _, m := range h.members {
 		s.Members = append(s.Members, m.member)
 	}
