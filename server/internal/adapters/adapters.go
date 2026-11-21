@@ -44,6 +44,7 @@ func Register(a PaymentAdapter) { Registry[a.BankID()] = a }
 
 func init() {
 	Register(BankB{})
+	Register(BankC{})
 }
 
 // ---- Bank A: fraud case export (JSON) ----
