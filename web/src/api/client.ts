@@ -25,8 +25,8 @@ export const api = {
     mockMode ? mock.evaluate(payment_id) : req("POST", "/api/bank-b/evaluate", { payment_id }),
   pause: (paused: boolean): Promise<State> => (mockMode ? mock.pause(paused) : req("POST", "/api/hub/pause", { paused })),
   reset: (): Promise<State> => (mockMode ? mock.reset() : req("POST", "/api/reset")),
-  devin: (bank_id = "bank-c"): Promise<DevinResponse> =>
-    mockMode ? mock.devin(bank_id) : req("POST", "/api/onboarding/devin", { bank_id }),
+  devin: (bank_id = "bank-c", task?: "signal-kind"): Promise<DevinResponse> =>
+    mockMode ? mock.devin(bank_id) : req("POST", "/api/onboarding/devin", { bank_id, task }),
 };
 
 /**

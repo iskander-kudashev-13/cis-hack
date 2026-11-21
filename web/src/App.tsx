@@ -9,7 +9,7 @@ import { BankView } from "./pages/BankView";
 import { Landing, type Session } from "./pages/Landing";
 
 const TITLES: Record<Page, string> = {
-  live: "Bank · what a member bank does and sees",
+  live: "Bank B · fraud desk console",
   signals: "Network operator · warnings and delivery, no bank data",
   hub: "Network operator · warnings and delivery, no bank data",
   onboarding: "Devin · how a new bank is connected",

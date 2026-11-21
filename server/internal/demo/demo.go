@@ -574,6 +574,21 @@ func (d *Demo) handleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// DevinSignalKindPrompt asks Devin to teach Bank B's connector a new indicator type
+// announced by the network (schema v2). The bank's engineer reviews the PR.
+const DevinSignalKindPrompt = `In the repo iskander-kudashev-13/cis-hack, add support for a new signal indicator type for Bank B.
+
+The network announced schema v2: besides "account_hmac" (HMAC of a normalized IBAN), a signal may carry indicator type "wallet_hmac": HMAC-SHA256 with the group key over a lower-cased crypto wallet address with whitespace removed.
+
+1. Create a branch devin/bank-b-wallet-indicator.
+2. In server/internal/protocol add NormalizeWallet and WalletIndicator(groupKey, address) next to AccountIndicator.
+3. In server/internal/node, make Cache.Match and Node.Check work for both indicator types; add Node.CheckWallet(address).
+4. In server/internal/adapters, let Bank B payments carry an optional creditor.wallet field and map it into Payment.
+5. Add tests: wallet normalization, a wallet signal matches, an IBAN signal does not match a wallet payment, retract still wins.
+6. Run cd server && go test ./... and paste the output. Open a draft PR "Bank B: support wallet_hmac indicators".
+
+Do not change the hub, the signature or encryption code. Use only synthetic test data.`
+
 // DevinPrompt is the onboarding task for Bank C (ISO 20022 pacs.008).
 const DevinPrompt = `Onboard Bank C to Scam Weather in the repo iskander-kudashev-13/cis-hack.
 
@@ -589,19 +604,27 @@ Bank C sends payments as ISO 20022 pacs.008 XML. Fixtures and the expected share
 Do not change the protocol, hub or node packages. Use only the synthetic fixtures.`
 
 func (d *Demo) handleDevin(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Task string `json:"task"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&in)
+	prompt, title, logText := DevinPrompt, "Scam Weather · onboard Bank C (pacs.008)", "Devin session started for Bank C onboarding"
+	if in.Task == "signal-kind" {
+		prompt, title, logText = DevinSignalKindPrompt, "Scam Weather · Bank B: support wallet_address indicator", "Devin session started: Bank B adds support for wallet_address signals"
+	}
 	key := os.Getenv("DEVIN_API_KEY")
 	if key == "" {
-		d.Log("devin", "Onboarding Bank C: manual mode, paste the task into Devin", "info")
-		writeJSON(w, 200, map[string]any{"mode": "manual", "prompt": DevinPrompt})
+		d.Log("devin", "Devin task prepared (manual mode): "+title, "info")
+		writeJSON(w, 200, map[string]any{"mode": "manual", "prompt": prompt})
 		return
 	}
-	body, _ := json.Marshal(map[string]any{"prompt": DevinPrompt, "title": "Scam Weather · onboard Bank C (pacs.008)"})
+	body, _ := json.Marshal(map[string]any{"prompt": prompt, "title": title})
 	req, _ := http.NewRequest("POST", "https://api.devin.ai/v1/sessions", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
 	if err != nil {
-		writeJSON(w, 502, map[string]any{"mode": "manual", "prompt": DevinPrompt, "error": err.Error()})
+		writeJSON(w, 502, map[string]any{"mode": "manual", "prompt": prompt, "error": err.Error()})
 		return
 	}
 	defer resp.Body.Close()
@@ -611,11 +634,11 @@ func (d *Demo) handleDevin(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&out)
 	if resp.StatusCode >= 300 || out.URL == "" {
-		writeJSON(w, 502, map[string]any{"mode": "manual", "prompt": DevinPrompt, "error": fmt.Sprintf("devin api status %d", resp.StatusCode)})
+		writeJSON(w, 502, map[string]any{"mode": "manual", "prompt": prompt, "error": fmt.Sprintf("devin api status %d", resp.StatusCode)})
 		return
 	}
-	d.Log("devin", "Devin session started for Bank C onboarding", "good")
-	writeJSON(w, 200, map[string]any{"mode": "api", "session_url": out.URL, "prompt": DevinPrompt})
+	d.Log("devin", logText, "good")
+	writeJSON(w, 200, map[string]any{"mode": "api", "session_url": out.URL, "prompt": prompt})
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

@@ -39,10 +39,10 @@ export function Panel({ title, icon, right, children, className = "", bodyClass 
   title: ReactNode; icon?: ReactNode; right?: ReactNode; children: ReactNode; className?: string; bodyClass?: string;
 }) {
   return (
-    <section className={`flex min-h-0 flex-col rounded-xl border border-border bg-surface ${className}`}>
-      <header className="flex h-10 flex-none items-center gap-2 border-b border-border px-3.5">
+    <section className={`flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#151517] ${className}`}>
+      <header className="flex h-14 flex-none items-center gap-2 px-6">
         {icon && <span className="text-text-3">{icon}</span>}
-        <h2 className="text-[13px] font-semibold tracking-tight">{title}</h2>
+        <h2 className="text-[16px] font-medium tracking-tight">{title}</h2>
         <div className="flex-1" />
         {right}
       </header>

@@ -1,119 +1,264 @@
 import { useState, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Send, Undo2 } from "lucide-react";
+import {
+  AlertTriangle, ArrowUpRight, Bell, Bot, Check, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitPullRequest, Loader2, Send, ShieldAlert, Undo2,
+} from "lucide-react";
 import { api } from "../api/client";
-import type { State } from "../api/types";
-import { Badge, Button, clock, money, until } from "../components/ui";
+import type { CacheRow, DevinResponse, State } from "../api/types";
+import { clock, money, until, useNow } from "../components/ui";
 
 type Run = (fn: () => Promise<State>) => Promise<void>;
 
-/** The member bank's screen, told as three steps. Hub internals are not shown here. */
+const PR_URL = "https://github.com/iskander-kudashev-13/cis-hack/pull/1";
+const REASON: Record<string, string> = {
+  confirmed_bec_case: "Confirmed business email compromise",
+  confirmed_app_scam: "Confirmed authorised push payment scam",
+  mule_network_link: "Linked to a known mule network",
+  invoice_redirection: "Invoice redirection fraud",
+};
+
+/**
+ * Bank B's console. Bank B receives warnings from the network (events), checks
+ * outgoing payments against them, and uses Devin when the network ships a new
+ * signal type its connector does not understand yet.
+ */
 export function BankView({ state, busy, run }: { state: State; busy: boolean; run: Run }) {
-  const a = state.bank_a, b = state.bank_b;
-  const sig = a.signal;
-  const active = sig && sig.event !== "RETRACT";
-  const delivered = sig ? sig.deliveries.filter((d) => d.status === "applied").length : 0;
-  const total = sig ? sig.deliveries.length : 0;
-  const lastDecision = b.decisions.length ? b.decisions[b.decisions.length - 1] : null;
+  const now = useNow(1000);
+  const b = state.bank_b, a = state.bank_a;
+  const names = Object.fromEntries(state.hub.members.map((m) => [m.id, m.name]));
+  const events = [...b.cache].sort((x, y) => (x.state === y.state ? Date.parse(y.expires_at) - Date.parse(x.expires_at) : x.state === "active" ? -1 : 1));
+  const active = events.filter((e) => e.state === "active");
+  const last = b.decisions.length ? b.decisions[b.decisions.length - 1] : null;
+  const held = b.decisions.filter((d) => d.decision === "REVIEW_REQUIRED").length;
   const pay = (id: string) => b.payments.find((p) => p.payment_id === id);
-  const fraud = a.cases[0];
+  const sigA = a.signal, aActive = !!sigA && sigA.event !== "RETRACT";
 
   return (
-    <div className="mx-auto flex max-w-[860px] flex-col gap-3">
-      <Step n={1} who="Bank A" title="Bank A confirms a fraud and warns the network"
-        text={fraud ? `A customer of Bank A (${fraud.customer}) was tricked into paying ${money(fraud.amount, fraud.currency)} to account ${fraud.beneficiary_masked}. Bank A warns the other banks about this account.` : ""}
-        action={<Button variant="primary" className="h-9 px-3.5" disabled={busy || !!active} onClick={() => run(api.publish)}><Send size={14} /> Send warning</Button>}
-        result={sig && active
-          ? <Result tone="good" title={delivered === total ? `All ${total} banks received the warning` : `Delivering… ${delivered} of ${total} banks`}
-              sub="The account number is encrypted; the network operator cannot read it." />
-          : <Result tone="muted" title="No warning sent yet" />}
-        details={sig && (
-          <>
-            <Line k="Warning ID" v={`${sig.signal_id} (version ${sig.revision})`} />
-            <Line k="Sent at" v={clock(sig.published_at)} />
-            <Line k="Valid for" v={until(sig.expires_at, Date.now())} />
-            <Line k="Delivered to" v={sig.deliveries.map((d) => `${d.member_name}${d.status === "applied" ? " ✓" : " …"}`).join(", ")} />
-            <Line k="Based on" v={`${a.cases.length} confirmed fraud cases to the same account`} />
-          </>
-        )} />
+    <div className="flex flex-col gap-4">
+      <div className="flex items-end gap-3">
+        <div>
+          <div className="text-[24px] font-medium tracking-tight">Bank B · payment protection</div>
+          <div className="text-[12.5px] text-text-3">Fraud desk console · warnings are decrypted only inside Bank B</div>
+        </div>
+        <div className="flex-1" />
+        <span className="font-mono text-[12px] text-text-3">{new Date(now).toLocaleTimeString("en-GB")}</span>
+      </div>
 
-      <Step n={2} who="Bank B" title="A Bank B customer sends money"
-        text="Before the money leaves, Bank B checks the receiving account against warnings it holds locally. The payment itself is never sent to anyone."
-        action={
-          <div className="flex gap-2">
-            {b.payments.map((p) => (
-              <Button key={p.payment_id} disabled={busy} onClick={() => run(() => api.evaluate(p.payment_id))}>
-                {p.kind === "match" ? "Pay the reported account" : "Pay a normal supplier"}
-              </Button>
-            ))}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="relative overflow-hidden rounded-[28px] p-7 text-white" style={{ background: "#3b78f0" }}>
+          <div className="absolute -right-16 -top-16 h-[220px] w-[220px] rounded-full border border-white/25" />
+          <div className="text-[13px] font-semibold uppercase tracking-[0.12em]">Bank B</div>
+          <div className="mt-1 text-[14px] text-white/70">Connected to Scam Weather</div>
+          <div className="mt-6 text-[52px] font-medium leading-none tracking-tight tabular-nums">{active.length}</div>
+          <div className="mt-1 text-[14px] text-white/80">active warnings protecting payments</div>
+          <div className="mt-8 flex text-[14px] text-white/85">
+            <span>●●●● {b.channel.status === "live" ? "network online" : "offline · local copy in use"}</span><div className="flex-1" /><span>cursor {b.channel.cursor}</span>
           </div>
-        }
-        result={lastDecision
-          ? lastDecision.decision === "REVIEW_REQUIRED"
-            ? <Result tone="bad" title="Payment held for review" sub={`${money(pay(lastDecision.payment_id)?.amount ?? 0, pay(lastDecision.payment_id)?.currency ?? "")} to ${pay(lastDecision.payment_id)?.beneficiary_masked}: another bank reported this account.`} />
-            : <Result tone="good" title="Payment approved" sub={`${money(pay(lastDecision.payment_id)?.amount ?? 0, pay(lastDecision.payment_id)?.currency ?? "")} to ${pay(lastDecision.payment_id)?.beneficiary_masked}: no warnings for this account.`} />
-          : <Result tone="muted" title="No payment checked yet" />}
-        details={lastDecision && (
-          <>
-            <Line k="Checked at" v={clock(lastDecision.at)} />
-            <Line k="Reason" v={lastDecision.reason} />
-            <Line k="Warnings Bank B holds" v={b.cache.filter((c) => c.state === "active").length} />
-            <Line k="Connection to network" v={b.channel.status === "live" ? "online" : "offline, checks still work from local copy"} />
-            <Line k="All checks" v={b.decisions.slice().reverse().map((d) => `${clock(d.at)} ${d.decision === "APPROVED" ? "approved" : "held"}`).join(" · ")} />
-          </>
-        )} />
+        </div>
+        <Tile title="Events received" sub="warnings from other banks">
+          <div className="mt-5 flex items-center gap-3">
+            <span className="text-[52px] font-medium leading-none tabular-nums">{events.length}</span>
+            <Pill tone="pos">{active.length} active</Pill>
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-2.5">
+            <Mini label="Active" value={active.length} color="#5fbf7b" />
+            <Mini label="Withdrawn" value={events.filter((e) => e.state !== "active").length} color="#f5c84b" />
+          </div>
+        </Tile>
+        <Tile title="Payments checked" sub="before money leaves Bank B">
+          <div className="mt-5 flex items-center gap-3">
+            <span className="text-[52px] font-medium leading-none tabular-nums">{b.decisions.length}</span>
+            {held > 0 && <Pill tone="neg">{held} held</Pill>}
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-2.5">
+            <Mini label="Approved" value={b.decisions.length - held} color="#5fbf7b" />
+            <Mini label="Held for review" value={held} color="#e8573a" />
+          </div>
+        </Tile>
+      </div>
 
-      <Step n={3} who="Bank A" title="Bank A withdraws the warning"
-        text="If the account turns out to be clean, Bank A withdraws the warning and payments to it go through again."
-        action={<Button disabled={busy || !active} onClick={() => run(api.retract)}><Undo2 size={14} /> Withdraw warning</Button>}
-        result={sig && !active ? <Result tone="good" title="Warning withdrawn" sub="Bank B no longer holds payments to this account." /> : <Result tone="muted" title="Warning still active" />} />
+      <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4">
+        <section className="overflow-hidden rounded-[28px] bg-[#151517]">
+          <header className="flex items-center gap-2 px-6 pb-3 pt-5">
+            <Bell size={15} className="text-text-3" />
+            <h2 className="text-[16px] font-medium">Event inbox</h2>
+            <div className="flex-1" />
+            <span className="text-[11.5px] text-text-3">newest first · click for details</span>
+          </header>
+          <DevinEvent />
+          <div className="max-h-[430px] overflow-auto">
+            {events.length === 0 && <div className="px-6 py-6 text-[13px] text-text-3">No warnings yet.</div>}
+            {events.slice(0, 30).map((e) => <EventRow key={`${e.signal_id}-${e.revision}`} e={e} from={names[e.issuer] ?? e.issuer} now={now} />)}
+          </div>
+        </section>
+
+        <div className="flex flex-col gap-4">
+          <section className="rounded-[28px] p-7 text-white" style={{ background: last?.decision === "REVIEW_REQUIRED" ? "#e8573a" : "#1f9254" }}>
+            <div className="flex items-start">
+              <div>
+                <div className="text-[17px] font-medium">Payment check</div>
+                <div className="text-[13px] text-white/75">a customer sends money</div>
+              </div>
+              <div className="flex-1" />
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15"><ArrowUpRight size={18} /></span>
+            </div>
+            {last ? (
+              <>
+                <div className="mt-6 text-[40px] font-medium leading-none tracking-tight">{money(pay(last.payment_id)?.amount ?? 0, pay(last.payment_id)?.currency ?? "")}</div>
+                <div className="mt-2 flex items-center gap-2 text-[16px] font-medium">
+                  {last.decision === "REVIEW_REQUIRED" ? <><AlertTriangle size={18} /> Held for review</> : <><CheckCircle2 size={18} /> Approved</>}
+                </div>
+                <div className="mt-1 text-[13px] text-white/85">to {pay(last.payment_id)?.beneficiary_masked} · {clock(last.at)}</div>
+                <div className="mt-1 text-[12.5px] text-white/75">{last.reason}</div>
+              </>
+            ) : <div className="mt-6 text-[15px] text-white/85">Choose a payment below to run the check.</div>}
+            <div className="mt-6 flex flex-wrap gap-2">
+              {b.payments.map((p) => (
+                <button key={p.payment_id} disabled={busy} onClick={() => run(() => api.evaluate(p.payment_id))}
+                  className="rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-50">
+                  {p.kind === "match" ? "Pay reported account" : "Pay normal supplier"}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[28px] bg-[#151517] p-7">
+            <div className="text-[17px] font-medium">Simulate another bank</div>
+            <div className="text-[13px] text-text-3">Bank A confirms a fraud on account AE07 •••• 3456</div>
+            <div className="mt-5 flex gap-2">
+              <button disabled={busy || aActive} onClick={() => run(api.publish)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-40">
+                <Send size={14} /> Bank A sends warning
+              </button>
+              <button disabled={busy || !aActive} onClick={() => run(api.retract)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#232326] px-4 py-2 text-[13px] font-medium hover:bg-[#2c2c30] disabled:opacity-40">
+                <Undo2 size={14} /> Withdraw
+              </button>
+            </div>
+            {sigA && <div className="mt-3 text-[12px] text-text-3">{aActive ? `Delivered to ${sigA.deliveries.filter((d) => d.status === "applied").length} of ${sigA.deliveries.length} banks` : "Warning withdrawn"}</div>}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }
 
-function Step({ n, who, title, text, action, result, details }: {
-  n: number; who: string; title: string; text: string; action: ReactNode; result: ReactNode; details?: ReactNode;
-}) {
+function EventRow({ e, from, now }: { e: CacheRow; from: string; now: number }) {
   const [open, setOpen] = useState(false);
+  const on = e.state === "active";
   return (
-    <section className="rounded-xl border border-border bg-surface p-4">
+    <div className="border-t border-white/5">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-3 px-6 py-3 text-left hover:bg-white/[0.03]">
+        <span className="text-text-3">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
+        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full" style={{ background: on ? "rgba(232,87,58,0.18)" : "#232326", color: on ? "#e8573a" : "var(--text-3)" }}>
+          <ShieldAlert size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13.5px] font-medium">{REASON[e.reason_code] ?? e.reason_code}</div>
+          <div className="truncate text-[12px] text-text-3">from {from} · {e.amount_band} · {e.signal_id}</div>
+        </div>
+        <Pill tone={on ? "neg" : "muted"}>{on ? "holding payments" : e.state}</Pill>
+      </button>
+      {open && (
+        <div className="mx-6 mb-3 grid grid-cols-2 gap-x-6 gap-y-1 rounded-2xl bg-[#1c1c1f] p-4 text-[12.5px]">
+          <KV k="Sender" v={`${from}, signature verified`} />
+          <KV k="Evidence" v={e.evidence_level.replace(/_/g, " ")} />
+          <KV k="Amount band" v={e.amount_band} />
+          <KV k="Version" v={`v${e.revision}`} />
+          <KV k="Valid for" v={on ? until(e.expires_at, now) : "—"} />
+          <KV k="Account match key" v={`${e.indicator.slice(0, 14)}…`} />
+          <div className="col-span-2 mt-2 text-[12px] text-text-3">
+            What Bank B does: any outgoing payment to this account is held for an analyst. The account number itself never left Bank A in clear text.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A pinned event: the network announced a new signal type; Devin adds support. */
+function DevinEvent() {
+  const [res, setRes] = useState<DevinResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  async function start() {
+    setLoading(true);
+    try { setRes(await api.devin("bank-b", "signal-kind")); setOpen(true); } catch { /* shown below */ } finally { setLoading(false); }
+  }
+  const steps = ["Event received", "Task sent to Devin", "Devin updates connector + tests", "Draft PR for your engineers"];
+  const reached = res ? 2 : 1;
+  return (
+    <div className="mx-4 mb-3 rounded-2xl p-4" style={{ background: "linear-gradient(135deg, rgba(59,120,240,0.22), rgba(168,85,247,0.14))" }}>
       <div className="flex items-start gap-3">
-        <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-accent text-[13px] font-bold text-white">{n}</span>
+        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent text-white"><Bot size={17} /></span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-[15px] font-semibold">{title}</h2>
-            <Badge tone="muted">{who}</Badge>
+            <span className="text-[13.5px] font-semibold">Action required · new signal type</span>
+            <Pill tone="neg">not supported yet</Pill>
           </div>
-          <p className="mt-1 text-[13px] text-text-2">{text}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-3">{action}</div>
-          <div className="mt-3">{result}</div>
-          {details && (
-            <>
-              <button onClick={() => setOpen(!open)} className="mt-2 inline-flex items-center gap-1 text-[12px] text-text-3 hover:text-text">
-                {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />} Details
-              </button>
-              {open && <div className="mt-2 rounded-lg bg-bg p-3">{details}</div>}
-            </>
+          <div className="mt-0.5 text-[12.5px] text-text-2">
+            The network announced schema v2: warnings can now point to a <b>crypto wallet</b>, not only an IBAN. Your connector ignores these warnings until it is updated.
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button onClick={start} disabled={loading}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90 disabled:opacity-60">
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />} Implement with Devin
+            </button>
+            {res?.session_url && <a href={res.session_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12.5px] text-accent hover:underline">Devin session <ExternalLink size={12} /></a>}
+            <a href={PR_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12.5px] text-text-3 hover:text-text"><GitPullRequest size={12} /> example PR from Devin</a>
+            {res && <button onClick={() => setOpen(!open)} className="text-[12.5px] text-text-3 hover:text-text">{open ? "Hide task" : "Show task"}</button>}
+          </div>
+          <div className="mt-3 grid grid-cols-4 gap-1.5">
+            {steps.map((s, i) => (
+              <div key={s} className="flex items-center gap-1.5 rounded-full bg-black/25 px-2.5 py-1.5 text-[11.5px]">
+                <span className="flex h-4 w-4 flex-none items-center justify-center rounded-full text-[9px] font-bold text-white"
+                  style={{ background: i < reached ? "#5fbf7b" : i === reached ? "#3b78f0" : "#3a3a3f" }}>
+                  {i < reached ? <Check size={10} /> : i + 1}
+                </span>
+                <span className="truncate">{s}</span>
+              </div>
+            ))}
+          </div>
+          {res && open && (
+            <pre className="mt-3 max-h-[200px] overflow-auto whitespace-pre-wrap rounded-xl bg-black/35 p-3 font-mono text-[11px] text-text-2">
+              {res.mode === "manual" ? "Devin API key is not set on this server: paste this task into Devin.\n\n" : ""}{res.prompt}
+            </pre>
           )}
         </div>
       </div>
-    </section>
-  );
-}
-
-function Result({ tone, title, sub }: { tone: "good" | "bad" | "muted"; title: string; sub?: string }) {
-  const color = tone === "good" ? "var(--pos)" : tone === "bad" ? "var(--neg)" : "var(--text-3)";
-  return (
-    <div className="flex items-start gap-2 rounded-lg border px-3 py-2.5"
-      style={{ borderColor: tone === "muted" ? "var(--border)" : `color-mix(in srgb, ${color} 45%, transparent)`, background: tone === "muted" ? "transparent" : `color-mix(in srgb, ${color} 10%, transparent)` }}>
-      <span style={{ color }} className="mt-0.5">{tone === "bad" ? <AlertTriangle size={17} /> : <CheckCircle2 size={17} />}</span>
-      <div>
-        <div className="text-[14px] font-semibold" style={{ color: tone === "muted" ? "var(--text-2)" : color }}>{title}</div>
-        {sub && <div className="text-[12.5px] text-text-2">{sub}</div>}
-      </div>
     </div>
   );
 }
 
-const Line = ({ k, v }: { k: string; v: ReactNode }) => (
-  <div className="flex gap-3 py-0.5 text-[12.5px]"><span className="w-[170px] flex-none text-text-3">{k}</span><span className="min-w-0 break-words">{v}</span></div>
+function Tile({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+  return (
+    <div className="rounded-[28px] bg-[#151517] p-7">
+      <div className="flex items-start">
+        <div>
+          <div className="text-[17px] font-medium">{title}</div>
+          {sub && <div className="text-[13px] text-text-3">{sub}</div>}
+        </div>
+        <div className="flex-1" />
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1f1f22] shadow-[0_6px_16px_rgba(0,0,0,0.5)]"><ArrowUpRight size={17} className="text-text-2" /></span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Pill({ tone, children }: { tone: "pos" | "neg" | "muted"; children: ReactNode }) {
+  const bg = tone === "pos" ? "#5fbf7b" : tone === "neg" ? "#e8573a" : "#2a2a2e";
+  return <span className="inline-flex flex-none items-center rounded-full px-3 py-1 text-[12px] font-medium text-white" style={{ background: bg }}>{children}</span>;
+}
+
+function Mini({ label, value, color }: { label: string; value: ReactNode; color: string }) {
+  return (
+    <div className="rounded-2xl bg-[#1c1c1f] px-3.5 py-3">
+      <div className="flex items-center gap-1.5 text-[12px] text-text-3"><span className="h-2 w-2 rounded-full" style={{ background: color }} />{label}</div>
+      <div className="mt-1 text-[20px] font-medium tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+const KV = ({ k, v }: { k: string; v: string }) => (
+  <div className="flex gap-2"><span className="w-[120px] flex-none text-text-3">{k}</span><span className="min-w-0 break-words">{v}</span></div>
 );

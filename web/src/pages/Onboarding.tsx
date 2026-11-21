@@ -68,7 +68,7 @@ function Code({ text, diff }: { text: string; diff?: boolean }) {
 
 function Section({ n, title, icon, right, children }: { n: number; title: string; icon: ReactNode; right?: ReactNode; children: ReactNode }) {
   return (
-    <Panel title={<><span className="mr-1.5 text-text-3">{n}.</span>{title}</>} icon={icon} right={right} bodyClass="p-4">
+    <Panel title={<><span className="mr-1.5 text-text-3">{n}.</span>{title}</>} icon={icon} right={right} bodyClass="px-6 pb-6">
       {children}
     </Panel>
   );
@@ -90,7 +90,7 @@ export function OnboardingPage() {
 
   return (
     <div className="mx-auto flex max-w-[1040px] flex-col gap-3">
-      <Panel title="Devin connects a new bank to the network" icon={<Bot size={15} />} bodyClass="p-5">
+      <Panel title="Devin connects a new bank to the network" icon={<Bot size={15} />} bodyClass="px-6 pb-6">
         <div className="max-w-[760px] space-y-1.5 text-[13.5px] text-text-2">
           <p>Every bank stores payments in its own format. To join Scam Weather, a bank needs a connector that turns its payments into our shape so they can be checked against warnings.</p>
           <p><b className="text-text">Devin writes that connector.</b> Below is a real run: Bank C uses ISO 20022 pacs.008 XML. Devin got the task through the API, wrote the code and tests, ran them and opened a draft PR. A Bank C engineer has the final say.</p>
