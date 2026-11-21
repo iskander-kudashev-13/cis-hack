@@ -1,0 +1,39 @@
+id: bec-05-payroll-diversion
+title: "Подмена зарплатных реквизитов сотрудника перед днём выплаты"
+scheme: payroll_diversion
+target: buyer          # работодатель
+based_on: "Типовая схема из предупреждений FBI IC3; мелкий чек, высокая частота"
+story: >
+  HR получает письмо «от сотрудника» с личной почты: «Смените, пожалуйста, счёт для зарплаты,
+  я перешёл в другой банк». Новый счёт в необанке открыт 5 дней назад. До зарплаты 2 дня.
+
+attacker_controls: [free_email_account]
+clean_channels: [vendor_portal]   # здесь: HR-портал сотрудника с MFA
+single_point_of_trust: "HR меняет зарплатные реквизиты по письму, а не через HR-портал с MFA"
+
+events:
+  - {t: "2026-11-25T16:30", type: email_received,      visible_to: [buyer], attrs: {from: john.smith.acme@gmail.com, urgency: medium, intent: payment_redirect}}
+  - {t: "2026-11-25T16:55", type: vendor_bank_changed, visible_to: [buyer], attrs: {entity: "employee #1043", via: email, approvers: 1, delay_hours: 0, changed_by: hr_specialist}}
+  - {t: "2026-11-25T16:55", type: beneficiary_added,   visible_to: [buyer, bank], attrs: {account: "NEOBANK-…", bank_country: US, name_match: no_match, account_age_days: 5}}
+  - {t: "2026-11-27T06:00", type: payment_created,     visible_to: [buyer, bank], attrs: {amount: 4800, currency: USD, new_beneficiary: true, amount_vs_median: 1.0, created_by: payroll_run, channel: ach_batch}}
+
+signals_fired:
+  - {signal: external_sender_claims_internal}
+  - {signal: unusual_request_channel}
+  - {signal: payment_redirect_intent}
+  - {signal: single_approver_change}
+  - {signal: bank_details_changed_recently}
+  - {signal: payee_name_mismatch}
+  - {signal: young_beneficiary_account}
+
+expected:
+  min_risk: critical
+  action: hold
+  require: [hr_portal_mfa_confirm]
+  must_fire: [external_sender_claims_internal, bank_details_changed_recently, payee_name_mismatch]
+  note: "Сумма маленькая — ловим по каналу запроса и по получателю, а не по сумме"
+catch_stage: vendor_bank_changed
+
+devin_task: >
+  В HR/payroll-сервисе запретить смену зарплатных реквизитов вне HR-портала с MFA; изменения
+  за <72 ч до выплаты переносить на следующий цикл. Тест на эту карточку.

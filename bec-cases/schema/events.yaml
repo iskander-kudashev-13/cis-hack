@@ -1,0 +1,30 @@
+# Словарь типов событий. Поле visible_to у события показывает, кто его видит:
+#   vendor_it — IT поставщика (почта поставщика)
+#   buyer     — компания-покупатель (её почта, ERP, AP)
+#   bank      — банк клиента
+#   bene_bank — банк получателя
+# Это иллюстрирует главный пробел: ни один участник не видит цепочку целиком.
+
+event_types:
+  mailbox_login:          "Вход в почтовый ящик. attrs: account, geo, ip_new, impossible_travel"
+  mailbox_rule_created:   "Создано правило в ящике. attrs: account, rule (forward|delete|move), match"
+  email_received:         "Получено письмо. attrs: from, reply_to, lookalike_of, domain_age_days, thread_hijack, urgency, secrecy, intent, attachment"
+  call_inbound:           "Входящий звонок/видео. attrs: claimed_identity, video, number_on_file, callback_refused, participants"
+  vendor_bank_changed:    "Сменены реквизиты поставщика/сотрудника. attrs: entity, via (email|portal|api|hr_portal), approvers, delay_hours, changed_by"
+  beneficiary_added:      "Добавлен получатель. attrs: account, bank_country, name_match (match|close|no_match), account_age_days"
+  payment_created:        "Создан платёж. attrs: amount, currency, beneficiary, new_beneficiary, amount_vs_median, created_by, channel, count"
+  api_call:               "Вызов API. attrs: actor, token, endpoint, method, geo, usual_for_actor"
+  confirmation:           "Подтверждение по чистому каналу. attrs: channel (bank_app|callback_on_file|dual_approval), result (confirmed|denied|no_answer)"
+  beneficiary_activity:   "Активность на счёте получателя. attrs: pass_through_ratio, hours_to_outflow, outflow_to"
+
+actions:
+  allow:   "Пропустить"
+  step_up: "Доп. подтверждение в приложении банка"
+  hold:    "Задержать платёж до подтверждения по чистому каналу"
+  block:   "Заблокировать, пометить получателя, уведомить банк получателя"
+
+clean_channels:
+  bank_app_device:   "Приложение банка на привязанном устройстве"
+  phone_on_file:     "Номер из анкеты банка / справочника поставщиков (НЕ из письма)"
+  vendor_portal:     "Личный кабинет поставщика с MFA"
+  dual_approval:     "Второй сотрудник подтверждает в своей учётке"

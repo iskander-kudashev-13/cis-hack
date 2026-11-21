@@ -1,0 +1,50 @@
+id: bec-01-vendor-mailbox-deepfake-bank
+title: "Взломанная почта поставщика + дипфейк-звонок менеджеру банка"
+scheme: account_compromise
+target: bank            # атакуют банк самого поставщика
+based_on: "Синтетический; комбинация компрометации ящика и голосового дипфейка"
+story: >
+  Атакующий получил доступ к почте владельца компании-поставщика, настроил пересылку писем
+  от банка, затем пишет менеджеру банка с просьбой срочно отправить $450k на новый счёт
+  и подкрепляет просьбу видеозвонком с дипфейком владельца.
+
+attacker_controls: [vendor_email, voice_video]
+clean_channels: [bank_app_device, phone_on_file]
+single_point_of_trust: "Менеджер банка может провести платёж по письму и звонку без подтверждения клиентом в приложении"
+
+events:
+  - {t: "2026-11-20T01:40", type: mailbox_login,        visible_to: [vendor_it], attrs: {account: owner@acme-supply.com, geo: NG, ip_new: true, impossible_travel: true}}
+  - {t: "2026-11-20T01:44", type: mailbox_rule_created, visible_to: [vendor_it], attrs: {account: owner@acme-supply.com, rule: forward, match: "from:*@bank.example"}}
+  - {t: "2026-11-20T09:12", type: email_received,       visible_to: [bank],      attrs: {from: owner@acme-supply.com, urgency: high, intent: payment_request}}
+  - {t: "2026-11-20T09:30", type: call_inbound,         visible_to: [bank],      attrs: {claimed_identity: "owner, Acme Supply", video: true, number_on_file: false, callback_refused: true}}
+  - {t: "2026-11-20T09:44", type: beneficiary_added,    visible_to: [bank],      attrs: {account: "US-CHK-88120", bank_country: US, name_match: no_match, account_age_days: 21}}
+  - {t: "2026-11-20T09:45", type: payment_created,      visible_to: [bank],      attrs: {amount: 450000, currency: USD, new_beneficiary: true, amount_vs_median: 5.1, created_by: relationship_manager, channel: branch}}
+
+signals_fired:
+  - {signal: mailbox_new_geo,          visible_only_if: vendor_connected}
+  - {signal: mailbox_forward_rule,     visible_only_if: vendor_connected}
+  - {signal: urgency_pressure}
+  - {signal: payment_redirect_intent}
+  - {signal: unusual_request_channel}
+  - {signal: inbound_call_not_on_file}
+  - {signal: callback_refused}
+  - {signal: new_beneficiary}
+  - {signal: amount_spike}
+  - {signal: payee_name_mismatch}
+  - {signal: young_beneficiary_account}
+
+expected:
+  min_risk: critical
+  action: hold
+  require: [bank_app_confirm, callback_on_file]
+  must_fire: [callback_refused, unusual_request_channel, payee_name_mismatch, amount_spike]
+  must_not_rely_on: [deepfake_detection]   # защита не должна зависеть от распознавания дипфейка
+catch_stage: payment_created
+
+resolution:
+  - {t: "2026-11-20T09:46", type: confirmation, attrs: {channel: bank_app, result: denied}}
+
+devin_task: >
+  Если кейс пропущен: в сервисе платежей запретить проведение платежа новому получателю,
+  созданного менеджером по запросу из почты/звонка, без события confirmation(channel=bank_app,
+  result=confirmed) от клиента. Добавить тест, воспроизводящий эту карточку.

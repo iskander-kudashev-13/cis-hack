@@ -1,0 +1,45 @@
+id: bec-04-deepfake-cfo-video
+title: "Дипфейк-видеозвонок «CFO и коллег» с серией переводов"
+scheme: ceo_fraud_deepfake
+target: buyer
+based_on: "Arup, 2024 — ~$25M; сотрудник провёл серию переводов после видеозвонка с фальшивыми руководителями"
+story: >
+  Сотрудник финансов получает письмо от «CFO» о конфиденциальной сделке, затем видеозвонок,
+  где «CFO» и ещё несколько «коллег» подтверждают задачу. За час уходит 5 переводов на 5 новых
+  счетов в двух странах.
+
+attacker_controls: [lookalike_domain, voice_video]
+clean_channels: [dual_approval, phone_on_file]
+single_point_of_trust: "Один сотрудник может провести крупные платежи новым получателям без второго подтверждения"
+
+events:
+  - {t: "2026-11-19T08:50", type: email_received,    visible_to: [buyer], attrs: {from: cfo@acme-hq.co, lookalike_of: acme-hq.com, domain_age_days: 12, secrecy: true, urgency: high, intent: payment_request}}
+  - {t: "2026-11-19T09:30", type: call_inbound,      visible_to: [buyer], attrs: {claimed_identity: "CFO + 3 executives", video: true, number_on_file: false, participants: 4}}
+  - {t: "2026-11-19T10:05", type: beneficiary_added, visible_to: [buyer, bank], attrs: {account: "5 new accounts", bank_country: "HK, SG", name_match: no_match, account_age_days: 25}}
+  - {t: "2026-11-19T10:10", type: payment_created,   visible_to: [buyer, bank], attrs: {amount: 25600000, currency: USD, count: 5, new_beneficiary: true, amount_vs_median: 40, created_by: finance_employee, channel: online_banking}}
+
+signals_fired:
+  - {signal: lookalike_domain}
+  - {signal: young_sender_domain}
+  - {signal: secrecy_request}
+  - {signal: urgency_pressure}
+  - {signal: inbound_call_not_on_file}
+  - {signal: unusual_request_channel}
+  - {signal: split_payments}
+  - {signal: new_beneficiary}
+  - {signal: new_beneficiary_country}
+  - {signal: amount_spike}
+  - {signal: payee_name_mismatch}
+
+expected:
+  min_risk: critical
+  action: hold
+  require: [dual_approval, callback_on_file]
+  must_fire: [split_payments, amount_spike, secrecy_request, payee_name_mismatch]
+  must_not_rely_on: [deepfake_detection]
+catch_stage: payment_created
+
+devin_task: >
+  В сервисе платежей ввести двойное подтверждение (второй сотрудник в своей учётке) для
+  платежей новым получателям выше порога и для серий >2 платежей новым получателям за 24 ч.
+  Тест на эту карточку.

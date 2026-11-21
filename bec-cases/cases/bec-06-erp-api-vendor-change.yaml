@@ -1,0 +1,44 @@
+id: bec-06-erp-api-vendor-change
+title: "Ночная смена реквизитов через API ERP украденным токеном"
+scheme: process_abuse
+target: buyer
+based_on: "Синтетический; сценарий слайдов хакатона («02:00, API Authorization, Account Drained»)"
+story: >
+  Атакующий получил токен интеграционного сервисного аккаунта ERP (утёк из CI-логов).
+  В 02:10 он через API меняет реквизиты трёх поставщиков. Плановый платёжный прогон в 06:00
+  отправляет $310k на новые счета. Ни одного письма — поэтому защита почты ничего не видит.
+
+attacker_controls: [erp_api_token]
+clean_channels: [dual_approval, phone_on_file]
+single_point_of_trust: "API смены реквизитов принимает изменение от любого токена со scope vendors:write без подтверждения"
+
+events:
+  - {t: "2026-11-21T02:10", type: api_call,            visible_to: [buyer], attrs: {actor: svc-integration, token: "tok_…a91", endpoint: "/vendors/{id}/bank", method: PATCH, geo: RO, usual_for_actor: false}}
+  - {t: "2026-11-21T02:10", type: vendor_bank_changed, visible_to: [buyer], attrs: {entity: "3 vendors", via: api, approvers: 0, delay_hours: 0, changed_by: svc-integration}}
+  - {t: "2026-11-21T02:11", type: beneficiary_added,   visible_to: [buyer, bank], attrs: {account: "3 new accounts", bank_country: US, name_match: no_match, account_age_days: 18}}
+  - {t: "2026-11-21T06:00", type: payment_created,     visible_to: [buyer, bank], attrs: {amount: 310000, currency: USD, count: 3, new_beneficiary: true, amount_vs_median: 1.1, created_by: payment_run, channel: erp_batch}}
+  - {t: "2026-11-21T06:40", type: beneficiary_activity, visible_to: [bene_bank], attrs: {pass_through_ratio: 0.96, hours_to_outflow: 0.6, outflow_to: crypto_exchange}}
+
+signals_fired:
+  - {signal: api_change_unusual_actor}
+  - {signal: off_hours}
+  - {signal: single_approver_change}
+  - {signal: bank_details_changed_recently}
+  - {signal: new_beneficiary}
+  - {signal: payee_name_mismatch}
+  - {signal: young_beneficiary_account}
+  - {signal: pass_through_account, visible_only_if: bene_bank_shares}
+
+expected:
+  min_risk: critical
+  action: hold
+  require: [dual_approval, callback_on_file]
+  must_fire: [api_change_unusual_actor, single_approver_change, bank_details_changed_recently]
+  note: "Главный кейс для Devin: причина — в коде, а не в человеке"
+catch_stage: vendor_bank_changed
+
+devin_task: >
+  ГЛАВНОЕ ДЕМО. Найти в коде ERP эндпоинт PATCH /vendors/{id}/bank: (1) вынести смену реквизитов
+  в отдельный scope и отозвать его у сервисных токенов; (2) изменение создаёт pending-запрос,
+  который применяется только после dual_approval и задержки 72 ч; (3) тест, проигрывающий
+  эту карточку: после патча payment_run не платит на новые реквизиты. Открыть PR.
