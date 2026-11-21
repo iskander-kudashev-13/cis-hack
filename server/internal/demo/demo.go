@@ -293,7 +293,11 @@ func (d *Demo) Evaluate(paymentID string) (Decision, error) {
 	d.mu.Unlock()
 	dec := Decision{AttemptID: fmt.Sprintf("att-%03d", attempt), PaymentID: paymentID, At: time.Now().UTC(),
 		Decision: "APPROVED", Reason: "Local rules: no risk signal for this beneficiary"}
-	if e, hit := d.B.Check(pay.BeneficiaryIBAN); hit {
+	e, hit := d.B.Check(pay.BeneficiaryIBAN)
+	if !hit {
+		e, hit = d.B.CheckWallet(pay.BeneficiaryWallet)
+	}
+	if hit {
 		dec.Decision = "REVIEW_REQUIRED"
 		dec.SignalID = e.Envelope.SignalID
 		dec.Revision = e.Envelope.Revision

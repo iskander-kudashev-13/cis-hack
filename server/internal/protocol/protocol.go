@@ -21,9 +21,32 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 )
 
-const SchemaVersion = 1
+// SchemaVersion is the version this node publishes. MinSchemaVersion is the
+// oldest version it still accepts.
+const (
+	SchemaVersion    = 2
+	MinSchemaVersion = 1
+)
+
+// Indicator types.
+const (
+	IndicatorAccountHMAC = "account_hmac" // v1+
+	IndicatorWalletHMAC  = "wallet_hmac"  // v2+
+)
+
+// SupportsIndicator reports whether an indicator type is valid in a schema version.
+func SupportsIndicator(schemaVersion int, typ string) bool {
+	switch typ {
+	case IndicatorAccountHMAC:
+		return schemaVersion >= 1
+	case IndicatorWalletHMAC:
+		return schemaVersion >= 2
+	}
+	return false
+}
 
 // Event is what a revision does to a signal.
 type Event string
@@ -57,7 +80,7 @@ type Payload struct {
 }
 
 type Indicator struct {
-	Type  string `json:"type"` // "account_hmac"
+	Type  string `json:"type"` // IndicatorAccountHMAC or IndicatorWalletHMAC
 	Value string `json:"value"`
 }
 
@@ -227,7 +250,24 @@ func NormalizeIBAN(s string) string {
 func AccountIndicator(groupKey []byte, iban string) Indicator {
 	m := hmac.New(sha256.New, groupKey)
 	m.Write([]byte(NormalizeIBAN(iban)))
-	return Indicator{Type: "account_hmac", Value: hex.EncodeToString(m.Sum(nil))}
+	return Indicator{Type: IndicatorAccountHMAC, Value: hex.EncodeToString(m.Sum(nil))}
+}
+
+// NormalizeWallet lower-cases a crypto wallet address and removes all whitespace.
+func NormalizeWallet(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return unicode.ToLower(r)
+	}, s)
+}
+
+// WalletIndicator returns HMAC-SHA256(groupKey, normalized wallet address) in hex.
+func WalletIndicator(groupKey []byte, address string) Indicator {
+	m := hmac.New(sha256.New, groupKey)
+	m.Write([]byte(NormalizeWallet(address)))
+	return Indicator{Type: IndicatorWalletHMAC, Value: hex.EncodeToString(m.Sum(nil))}
 }
 
 // RandomID returns a short random id with a prefix.
