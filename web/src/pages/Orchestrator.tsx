@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Activity, Check, ChevronDown, ChevronRight, Clock, Gauge, Link2, Lock, Radio, Server, ShieldCheck, Timer, Users } from "lucide-react";
+import { Activity, ArrowUpRight, Check, ChevronDown, ChevronRight, Clock, Gauge, Link2, Lock, Radio, Server, ShieldCheck, Timer, Users } from "lucide-react";
 import type { State, StoredSignal } from "../api/types";
 import { Badge, clock, short, until, useNow } from "../components/ui";
 
@@ -18,86 +18,137 @@ export function OrchestratorView({ state }: { state: State }) {
   const h = state.hub;
   const a = useMemo(() => analyze(state), [state]);
   const online = h.members.filter((m) => isOnline(h.last_seen?.[m.id], now)).length;
+  const series = a.perMinute.map((b) => b.up + b.down);
+  const half = Math.floor(series.length / 2);
+  const prev = series.slice(0, half).reduce((x, y) => x + y, 0), cur = series.slice(half).reduce((x, y) => x + y, 0);
+  const trend = prev ? Math.round(((cur - prev) / prev) * 100) : cur ? 100 : 0;
+  const delivery = h.members.filter((m) => a.member[m.id]?.received).map((m) => ({
+    label: m.name.replace("Bank ", ""), pct: Math.round((a.member[m.id].acked / a.member[m.id].received) * 100),
+  }));
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-4">
+      <div className="flex items-end gap-3">
         <div>
-          <div className="text-[18px] font-semibold tracking-tight">Network operations</div>
-          <div className="text-[12px] text-text-3">UAE BEC pilot · routing metadata only, contents end-to-end encrypted</div>
+          <div className="text-[24px] font-medium tracking-tight">Network operations</div>
+          <div className="text-[12.5px] text-text-3">UAE BEC pilot · routing metadata only, contents end-to-end encrypted</div>
         </div>
         <div className="flex-1" />
-        <Badge tone={h.paused ? "warn" : "good"} dot pulse={!h.paused}>{h.paused ? "Hub paused" : "All systems operational"}</Badge>
         <span className="font-mono text-[12px] text-text-3">{new Date(now).toLocaleTimeString("en-GB")}</span>
       </div>
 
-      <div className="grid grid-cols-5 gap-3">
-        <Kpi icon={<Users size={14} />} label="Members online" value={`${online}/${h.members.length}`} tone={online === h.members.length ? "good" : "warn"}
-          foot={online === h.members.length ? "all banks syncing" : `${h.members.length - online} not syncing`} />
-        <Kpi icon={<Radio size={14} />} label={`Signals · last ${WINDOW_MIN} min`} value={String(a.windowTotal)} spark={a.perMinute.map((b) => b.up + b.down)}
-          foot={`${(a.perMinute[a.perMinute.length - 1]?.up ?? 0) + (a.perMinute[a.perMinute.length - 1]?.down ?? 0)} this minute`} />
-        <Kpi icon={<Gauge size={14} />} label="Delivery rate" value={`${a.deliveryRate.toFixed(1)}%`} tone={a.deliveryRate > 99 ? "good" : "warn"}
-          foot={`${a.acked} of ${a.expected} confirmations`} />
-        <Kpi icon={<Timer size={14} />} label="Latency p50 / p95" value={`${a.p50} / ${a.p95} ms`} spark={a.latencySpark} foot="publish → bank confirmed" />
-        <Kpi icon={<ShieldCheck size={14} />} label="Audit chain" value={h.chain_ok ? "Verified" : "Broken"} tone={h.chain_ok ? "good" : "bad"}
-          foot={`${h.journal.length} entries hash-linked`} />
+      <div className="grid grid-cols-3 gap-4">
+        {/* Hero: network status */}
+        <div className="relative overflow-hidden rounded-[28px] p-7 text-white" style={{ background: "#3b78f0" }}>
+          <div className="absolute -right-16 -top-16 h-[220px] w-[220px] rounded-full border border-white/25" />
+          <div className="absolute -right-4 -top-24 h-[220px] w-[220px] rounded-full border border-white/15" />
+          <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-white/90">Scam Weather</div>
+          <div className="mt-1 text-[14px] text-white/70">Network status</div>
+          <div className="mt-6 text-[52px] font-medium leading-none tracking-tight tabular-nums">{online}/{h.members.length}</div>
+          <div className="mt-1 text-[14px] text-white/80">banks online {h.paused ? "· hub paused" : ""}</div>
+          <div className="mt-8 flex text-[14px] text-white/85">
+            <span>●●●● {h.chain_ok ? "audit verified" : "audit broken"}</span><div className="flex-1" /><span>{h.journal.length} entries</span>
+          </div>
+        </div>
+
+        {/* Signals volume */}
+        <Tile title="Signals" sub={`last ${WINDOW_MIN} minutes`}>
+          <div className="mt-5 flex items-center gap-3">
+            <span className="text-[52px] font-medium leading-none tracking-tight tabular-nums">{a.windowTotal}</span>
+            <Pill tone={trend >= 0 ? "pos" : "neg"}>{trend >= 0 ? "+" : ""}{trend}%</Pill>
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-2.5">
+            <Mini label="Warnings" value={a.perMinute.reduce((n, b) => n + b.up, 0)} color="#4d86e8" />
+            <Mini label="Withdrawals" value={a.perMinute.reduce((n, b) => n + b.down, 0)} color="#f5c84b" />
+          </div>
+        </Tile>
+
+        {/* Members */}
+        <Tile title="Members" sub="banks in the pilot">
+          <div className="mt-5 flex -space-x-2.5">
+            {h.members.slice(0, 6).map((m, i) => (
+              <span key={m.id} className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#151517] text-[14px] font-semibold text-black"
+                style={{ background: ["#9ad4a8", "#f5c84b", "#8fb3ff", "#f0a27a", "#c7b3ff", "#7fd6cf"][i % 6] }}>
+                {m.name.replace("Bank ", "")}
+              </span>
+            ))}
+            {h.members.length > 6 && <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#151517] bg-[#5fbf7b] text-[14px] font-semibold text-black">+{h.members.length - 6}</span>}
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-2.5">
+            <Mini label="Delivery rate" value={`${a.deliveryRate.toFixed(1)}%`} color="#5fbf7b" />
+            <Mini label="Latency p50" value={`${a.p50} ms`} color="#8fb3ff" />
+          </div>
+        </Tile>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
-        <Card title="Signal traffic" icon={<Activity size={14} />} right={<Legend items={[["Warnings", PALETTE[0]], ["Withdrawals", PALETTE[2]]]} />}>
-          <TrafficChart data={a.perMinute} />
-        </Card>
-        <Card title="Signals by issuing bank" icon={<Radio size={14} />}>
-          <Donut slices={a.byIssuer} names={a.names} />
-        </Card>
+      <div className="grid grid-cols-3 gap-4">
+        <Tile title="Delivery by bank" sub="confirmed / received">
+          <HatchBars rows={delivery} />
+        </Tile>
+
+        <div className="col-span-2 rounded-[28px] p-7 text-white" style={{ background: "#e8573a" }}>
+          <div className="flex items-start">
+            <div>
+              <div className="text-[17px] font-medium">Signal traffic</div>
+              <div className="text-[13px] text-white/75">per minute, all banks</div>
+            </div>
+            <div className="flex-1" />
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15"><ArrowUpRight size={18} /></span>
+          </div>
+          <SmoothLine buckets={a.perMinute} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-3">
+      <div className="grid grid-cols-4 gap-4">
+        <Stat label="Latency p95" value={`${a.p95} ms`} pill={a.p95 < 3000 ? ["within SLA", "pos"] : ["above SLA", "neg"]} />
+        <Stat label="Confirmations" value={`${a.acked}`} pill={[`of ${a.expected}`, "muted"]} />
+        <Stat label="Delivery rate" value={`${a.deliveryRate.toFixed(1)}%`} pill={a.deliveryRate > 95 ? ["healthy", "pos"] : ["degraded", "neg"]} />
+        <Stat label="Hub" value={h.paused ? "Paused" : "Online"} pill={h.paused ? ["check", "neg"] : ["operational", "pos"]} />
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-4">
         <Card title="Member health" icon={<Server size={14} />} pad={false}>
           <table className="w-full text-[12.5px]">
-            <thead><tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-text-3">
-              <Th>Bank</Th><Th>Status</Th><Th>Last sync</Th><Th right>Sent</Th><Th right>Received</Th><Th right>Delivery</Th><Th right>Avg latency</Th>
+            <thead><tr className="text-left text-[11px] uppercase tracking-wide text-text-3">
+              <Th>Bank</Th><Th>Status</Th><Th>Last sync</Th><Th right>Sent</Th><Th right>Received</Th><Th right>Avg latency</Th>
             </tr></thead>
             <tbody>
               {h.members.map((m) => {
-                const s = a.member[m.id];
+                const st = a.member[m.id];
                 const on = isOnline(h.last_seen?.[m.id], now);
                 return (
-                  <tr key={m.id} className="border-b border-border last:border-0 hover:bg-surface-2">
-                    <td className="px-3 py-2 font-medium">{m.name}</td>
-                    <td className="px-3 py-2"><Badge tone={on ? "good" : "warn"} dot>{on ? "online" : "stale"}</Badge></td>
-                    <td className="px-3 py-2 font-mono text-[11.5px] text-text-3">{ago(h.last_seen?.[m.id], now)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{s?.sent ?? 0}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{s?.received ?? 0}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{s?.received ? `${Math.round((s.acked / s.received) * 100)}%` : "—"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{s?.acked ? `${Math.round(s.latency / s.acked)} ms` : "—"}</td>
+                  <tr key={m.id} className="border-t border-white/5 hover:bg-white/[0.03]">
+                    <td className="px-5 py-2.5 font-medium">{m.name}</td>
+                    <td className="px-5 py-2.5"><Pill tone={on ? "pos" : "neg"}>{on ? "online" : "stale"}</Pill></td>
+                    <td className="px-5 py-2.5 font-mono text-[11.5px] text-text-3">{ago(h.last_seen?.[m.id], now)}</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums">{st?.sent ?? 0}</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums">{st?.received ?? 0}</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums">{st?.acked ? `${Math.round(st.latency / st.acked)} ms` : "—"}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </Card>
-        <Card title="Confirmation latency by bank" icon={<Timer size={14} />}>
-          <Bars rows={h.members.filter((m) => a.member[m.id]?.acked).map((m) => ({
-            label: m.name, value: Math.round(a.member[m.id].latency / a.member[m.id].acked), max: a.member[m.id].maxLatency,
-          }))} />
+        <Card title="Signals by issuing bank" icon={<Radio size={14} />}>
+          <Donut slices={a.byIssuer} names={a.names} />
         </Card>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3">
-        <Card title="Live message stream" icon={<Radio size={14} />} pad={false}
+      <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-4">
+        <Card title="Live message stream" icon={<Activity size={14} />} pad={false}
           right={<span className="flex items-center gap-1 text-[11px] text-text-3"><Lock size={11} /> click a row for routing details</span>}>
           <div className="max-h-[420px] overflow-auto">
             {[...h.stored].reverse().slice(0, 25).map((s) => <StreamRow key={`${s.envelope.signal_id}-${s.envelope.revision}`} s={s} state={state} names={a.names} />)}
           </div>
         </Card>
-        <Card title="Audit log" icon={<Link2 size={14} />} pad={false} right={<Badge tone={h.chain_ok ? "good" : "bad"}>{h.chain_ok ? "chain verified" : "chain broken"}</Badge>}>
+        <Card title="Audit log" icon={<Link2 size={14} />} pad={false} right={<Pill tone={h.chain_ok ? "pos" : "neg"}>{h.chain_ok ? "chain verified" : "chain broken"}</Pill>}>
           <div className="max-h-[420px] overflow-auto font-mono text-[11px]">
             {[...h.journal].reverse().slice(0, 60).map((j) => (
-              <div key={j.seq} className="flex items-center gap-2 border-b border-border px-3 py-1.5 last:border-0">
+              <div key={j.seq} className="flex items-center gap-2 border-t border-white/5 px-5 py-1.5">
                 <span className="w-[42px] text-text-3">#{j.seq}</span>
                 <span className="w-[58px] text-text-3">{clock(j.at)}</span>
-                <span className="w-[66px]" style={{ color: j.type === "ack" ? "var(--pos)" : j.type === "rejected" ? "var(--neg)" : j.type === "queued" ? "var(--text-3)" : "var(--accent)" }}>{j.type}</span>
+                <span className="w-[66px]" style={{ color: j.type === "ack" ? "#5fbf7b" : j.type === "rejected" ? "#e8573a" : j.type === "queued" ? "var(--text-3)" : "#8fb3ff" }}>{j.type}</span>
                 <span className="w-[54px] truncate">{a.names[j.actor] ?? j.actor}</span>
                 <span className="flex-1 truncate text-text-3">{j.hash}</span>
               </div>
@@ -106,6 +157,100 @@ export function OrchestratorView({ state }: { state: State }) {
         </Card>
       </div>
     </div>
+  );
+}
+
+function Tile({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+  return (
+    <div className="rounded-[28px] bg-[#151517] p-7">
+      <div className="flex items-start">
+        <div>
+          <div className="text-[17px] font-medium">{title}</div>
+          {sub && <div className="text-[13px] text-text-3">{sub}</div>}
+        </div>
+        <div className="flex-1" />
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1f1f22] shadow-[0_6px_16px_rgba(0,0,0,0.5)]"><ArrowUpRight size={17} className="text-text-2" /></span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Pill({ tone, children }: { tone: "pos" | "neg" | "muted"; children: ReactNode }) {
+  const bg = tone === "pos" ? "#5fbf7b" : tone === "neg" ? "#e8573a" : "#2a2a2e";
+  return <span className="inline-flex items-center rounded-full px-3 py-1 text-[12.5px] font-medium tabular-nums text-white" style={{ background: bg }}>{children}</span>;
+}
+
+function Mini({ label, value, color }: { label: string; value: ReactNode; color: string }) {
+  return (
+    <div className="rounded-2xl bg-[#1c1c1f] px-3.5 py-3">
+      <div className="flex items-center gap-1.5 text-[12px] text-text-3"><span className="h-2 w-2 rounded-full" style={{ background: color }} />{label}</div>
+      <div className="mt-1 text-[20px] font-medium tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function Stat({ label, value, pill }: { label: string; value: string; pill: [string, "pos" | "neg" | "muted"] }) {
+  return (
+    <div className="flex items-center rounded-[24px] bg-[#151517] px-6 py-5">
+      <div>
+        <div className="text-[13px] text-text-3">{label}</div>
+        <div className="mt-1 text-[26px] font-medium tracking-tight tabular-nums">{value}</div>
+      </div>
+      <div className="flex-1" />
+      <Pill tone={pill[1]}>{pill[0]}</Pill>
+    </div>
+  );
+}
+
+function HatchBars({ rows }: { rows: { label: string; pct: number }[] }) {
+  const colors = ["#5fbf7b", "#f5c84b", "#4d86e8"];
+  return (
+    <div className="mt-5 flex h-[210px] gap-2">
+      {rows.map((r, i) => (
+        <div key={r.label} className="flex flex-1 flex-col items-center gap-2">
+          <div className="relative w-full flex-1 overflow-hidden rounded-xl"
+            style={{ backgroundImage: "repeating-linear-gradient(-45deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 9px)", background: undefined }}>
+            <div className="absolute inset-x-0 bottom-0 rounded-xl transition-all" style={{ height: `${r.pct}%`, background: colors[i % 3] }}>
+              <div className="px-1.5 pt-1.5 text-[11px] font-semibold text-black/75">{r.pct}%</div>
+            </div>
+          </div>
+          <span className="text-[12px] text-text-3">{r.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SmoothLine({ buckets }: { buckets: { t: number; up: number; down: number }[] }) {
+  const W = 760, H = 230, top = 40, bottom = 30;
+  const vals = buckets.map((b) => b.up + b.down);
+  const max = Math.max(4, ...vals);
+  const x = (i: number) => (i / Math.max(1, vals.length - 1)) * W;
+  const y = (v: number) => top + (1 - v / max) * (H - top - bottom);
+  let d = `M ${x(0)} ${y(vals[0] ?? 0)}`;
+  for (let i = 1; i < vals.length; i++) {
+    const cx = (x(i - 1) + x(i)) / 2;
+    d += ` C ${cx} ${y(vals[i - 1])}, ${cx} ${y(vals[i])}, ${x(i)} ${y(vals[i])}`;
+  }
+  const peak = vals.reduce((bi, v, i) => (v > vals[bi] ? i : bi), 0);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 h-[230px] w-full overflow-visible">
+      {vals.map((_, i) => <line key={i} x1={x(i)} x2={x(i)} y1={top} y2={H - bottom} stroke="rgba(255,255,255,0.12)" />)}
+      <line x1={0} x2={W} y1={H - bottom} y2={H - bottom} stroke="rgba(255,255,255,0.35)" />
+      <rect x={x(peak) - 14} y={y(vals[peak])} width={28} height={H - bottom - y(vals[peak])} rx={14} fill="rgba(255,255,255,0.35)" />
+      <path d={d} fill="none" stroke="white" strokeWidth={2.5} />
+      <circle cx={x(peak)} cy={y(vals[peak])} r={4} fill="white" />
+      <g transform={`translate(${Math.min(W - 30, Math.max(30, x(peak)))}, ${y(vals[peak]) - 26})`}>
+        <rect x={-28} y={-15} width={56} height={30} rx={15} fill="white" />
+        <text textAnchor="middle" y={5} fontSize="14" fontWeight="600" fill="#1a1a1a">{vals[peak]}</text>
+      </g>
+      {buckets.map((b, i) => i % 2 === 0 && (
+        <text key={b.t} x={x(i)} y={H - 8} fontSize="12" textAnchor="middle" fill="rgba(255,255,255,0.85)">
+          {new Date(b.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+        </text>
+      ))}
+    </svg>
   );
 }
 
@@ -145,8 +290,20 @@ function analyze(state: State) {
   }
   const sorted = [...lat].sort((x, y) => x - y);
   const pct = (p: number) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : 0);
-  const expected = Object.values(member).reduce((n, s) => n + s.received, 0);
-  const acked = h.acks.length;
+  // Delivery is measured over the signals still in the window, so both sides match.
+  const inWindow = new Set(h.stored.map((x) => `${x.envelope.signal_id}#${x.envelope.revision}`));
+  let expected = 0, acked = 0;
+  for (const x of h.stored) {
+    for (const mem of h.members) if (mem.id !== x.envelope.issuer) { expected++; m(mem.id).received = 0; }
+  }
+  for (const x of h.stored) for (const mem of h.members) if (mem.id !== x.envelope.issuer) m(mem.id).received++;
+  for (const st of Object.values(member)) { st.acked = 0; st.latency = 0; st.maxLatency = 0; }
+  for (const ack of h.acks) {
+    if (!inWindow.has(`${ack.signal_id}#${ack.revision}`)) continue;
+    const st = m(ack.member);
+    st.acked++; st.latency += ack.latency_ms; st.maxLatency = Math.max(st.maxLatency, ack.latency_ms);
+    acked++;
+  }
   const recentAcks = [...h.acks].sort((x, y) => Date.parse(x.at) - Date.parse(y.at)).slice(-30).map((x) => x.latency_ms);
 
   return {
@@ -169,13 +326,13 @@ function ago(iso: string | undefined, now: number) {
 
 function Card({ title, icon, right, children, pad = true }: { title: string; icon: ReactNode; right?: ReactNode; children: ReactNode; pad?: boolean }) {
   return (
-    <section className="flex min-w-0 flex-col rounded-xl border border-border bg-surface">
-      <header className="flex h-10 items-center gap-2 border-b border-border px-3.5">
+    <section className="flex min-w-0 flex-col overflow-hidden rounded-[28px] bg-[#151517]">
+      <header className="flex items-center gap-2 px-6 pb-3 pt-5">
         <span className="text-text-3">{icon}</span>
-        <h2 className="text-[13px] font-semibold">{title}</h2>
+        <h2 className="text-[16px] font-medium">{title}</h2>
         <div className="flex-1" />{right}
       </header>
-      <div className={pad ? "p-3.5" : ""}>{children}</div>
+      <div className={pad ? "px-6 pb-6" : "pb-2"}>{children}</div>
     </section>
   );
 }
